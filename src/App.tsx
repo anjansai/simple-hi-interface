@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import MenuManagement from "./pages/MenuManagement";
 import Orders from "./pages/Orders";
 import Tables from "./pages/Tables";
+import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="menu" element={<MenuManagement />} />
             <Route path="orders" element={<Orders />} />
             <Route path="tables" element={<Tables />} />
+            <Route path="analytics" element={<Analytics />} />
             {/* Add additional routes here as you build them */}
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
