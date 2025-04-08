@@ -30,17 +30,19 @@ const MenuManagement: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All Items');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Fetch menu items using React Query
+  // Fetch menu items using React Query with corrected error handling
   const { data: menuItems = [], isLoading, error } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
-    onError: (err) => {
-      toast({
-        title: "Error loading menu items",
-        description: "Could not connect to the database. Please ensure MongoDB is running.",
-        variant: "destructive",
-      });
-      console.error("Error fetching menu items:", err);
+    meta: {
+      onError: (err: any) => {
+        toast({
+          title: "Error loading menu items",
+          description: "Could not connect to the database. Please ensure MongoDB is running.",
+          variant: "destructive",
+        });
+        console.error("Error fetching menu items:", err);
+      }
     }
   });
 
@@ -79,6 +81,18 @@ const MenuManagement: React.FC = () => {
        item.description.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [menuItems, activeCategory, searchTerm]);
+
+  // Add an effect to show a toast message when errors occur
+  React.useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error loading menu items",
+        description: "Could not connect to the database. Please ensure MongoDB is running.",
+        variant: "destructive",
+      });
+      console.error("Error fetching menu items:", error);
+    }
+  }, [error, toast]);
 
   return (
     <div className="space-y-6">
