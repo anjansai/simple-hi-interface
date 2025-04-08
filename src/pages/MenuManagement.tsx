@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -10,9 +11,11 @@ import {
 } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { getAllMenuItems, MenuItem, deleteMenuItem } from '@/services/menuService';
 
-// Mock data for menu items
-const mockMenuCategories = [
+// Menu categories
+const menuCategories = [
   'All Items',
   'Starters',
   'Main Courses',
@@ -21,73 +24,61 @@ const mockMenuCategories = [
   'Specials'
 ];
 
-interface MenuItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  description: string;
-  imageUrl: string;
-  available: boolean;
-}
-
-const mockMenuItems: MenuItem[] = [
-  {
-    id: '1',
-    name: 'Classic Burger',
-    category: 'Main Courses',
-    price: 12.99,
-    description: 'Beef patty with lettuce, tomato, and special sauce',
-    imageUrl: 'https://placehold.co/200x150',
-    available: true,
-  },
-  {
-    id: '2',
-    name: 'Caesar Salad',
-    category: 'Starters',
-    price: 8.99,
-    description: 'Romaine lettuce with Caesar dressing and croutons',
-    imageUrl: 'https://placehold.co/200x150',
-    available: true,
-  },
-  {
-    id: '3',
-    name: 'Chocolate Cake',
-    category: 'Desserts',
-    price: 6.99,
-    description: 'Rich chocolate cake with ganache',
-    imageUrl: 'https://placehold.co/200x150',
-    available: true,
-  },
-  {
-    id: '4',
-    name: 'Iced Tea',
-    category: 'Beverages',
-    price: 3.99,
-    description: 'Refreshing cold tea with lemon',
-    imageUrl: 'https://placehold.co/200x150',
-    available: true,
-  },
-  {
-    id: '5',
-    name: 'Seafood Pasta',
-    category: 'Specials',
-    price: 18.99,
-    description: 'Fresh seafood with pasta in tomato sauce',
-    imageUrl: 'https://placehold.co/200x150',
-    available: true,
-  }
-];
-
 const MenuManagement: React.FC = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState('All Items');
   const [searchTerm, setSearchTerm] = useState('');
   
-  const filteredItems = mockMenuItems.filter(item => 
-    (activeCategory === 'All Items' || item.category === activeCategory) &&
-    (item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     item.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Fetch menu items using React Query
+  const { data: menuItems = [], isLoading, error } = useQuery({
+    queryKey: ['menuItems'],
+    queryFn: getAllMenuItems,
+    onError: (err) => {
+      toast({
+        title: "Error loading menu items",
+        description: "Could not connect to the database. Please ensure MongoDB is running.",
+        variant: "destructive",
+      });
+      console.error("Error fetching menu items:", err);
+    }
+  });
+
+  // Delete menu item mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteMenuItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
+      toast({
+        title: "Menu item deleted",
+        description: "The menu item has been successfully removed",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Error deleting menu item",
+        description: "There was a problem deleting the menu item",
+        variant: "destructive",
+      });
+      console.error("Delete error:", err);
+    }
+  });
+
+  // Handle delete menu item
+  const handleDeleteItem = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this menu item?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+  
+  // Filter items based on active category and search term
+  const filteredItems = React.useMemo(() => {
+    return (menuItems as MenuItem[]).filter(item => 
+      (activeCategory === 'All Items' || item.category === activeCategory) &&
+      (item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [menuItems, activeCategory, searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -116,56 +107,74 @@ const MenuManagement: React.FC = () => {
         </Button>
       </div>
       
-      <Tabs defaultValue="All Items" value={activeCategory} onValueChange={setActiveCategory}>
-        <TabsList className="mb-4 overflow-auto">
-          {mockMenuCategories.map((category) => (
-            <TabsTrigger key={category} value={category}>
-              {category}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        
-        {mockMenuCategories.map((category) => (
-          <TabsContent key={category} value={category} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredItems.map((item) => (
-                <Card key={item.id} className="overflow-hidden">
-                  <div className="aspect-video w-full overflow-hidden bg-muted">
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold">{item.name}</h3>
-                        <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-48">
+          <p>Loading menu items...</p>
+        </div>
+      ) : error ? (
+        <div className="text-center p-8 border rounded-lg">
+          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure MongoDB is running.</p>
+        </div>
+      ) : (
+        <Tabs defaultValue="All Items" value={activeCategory} onValueChange={setActiveCategory}>
+          <TabsList className="mb-4 overflow-auto">
+            {menuCategories.map((category) => (
+              <TabsTrigger key={category} value={category}>
+                {category}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          
+          {menuCategories.map((category) => (
+            <TabsContent key={category} value={category} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredItems.map((item) => (
+                  <Card key={item._id?.toString()} className="overflow-hidden">
+                    <div className="aspect-video w-full overflow-hidden bg-muted">
+                      <img
+                        src={item.imageUrl || "https://placehold.co/200x150"}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://placehold.co/200x150";
+                        }}
+                      />
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{item.name}</h3>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                        </div>
+                        <div className="font-medium">${item.price.toFixed(2)}</div>
                       </div>
-                      <div className="font-medium">${item.price.toFixed(2)}</div>
-                    </div>
-                    <div className="mt-4 flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1">
-                        <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button size="sm" variant="destructive" className="flex-1">
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            
-            {filteredItems.length === 0 && (
-              <div className="text-center p-8 border rounded-lg">
-                <p className="text-muted-foreground">No items found. Try adjusting your search or filter.</p>
+                      <div className="mt-4 flex gap-2">
+                        <Button size="sm" variant="outline" className="flex-1">
+                          <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive" 
+                          className="flex-1"
+                          onClick={() => handleDeleteItem(item._id?.toString() || '')}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+              
+              {filteredItems.length === 0 && (
+                <div className="text-center p-8 border rounded-lg">
+                  <p className="text-muted-foreground">No items found. Try adjusting your search or filter.</p>
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </div>
   );
 };

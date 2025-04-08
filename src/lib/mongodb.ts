@@ -1,7 +1,7 @@
 
 import { MongoClient, ServerApiVersion } from 'mongodb';
 
-// Connection URI (replace with your MongoDB connection string)
+// Connection URI (defaulting to localhost if no env variable is set)
 const uri = import.meta.env.VITE_MONGODB_URI || "mongodb://localhost:27017/restaurantDB";
 
 // Create a MongoClient with connection options
@@ -22,6 +22,7 @@ export async function connectToDatabase() {
   try {
     if (!db) {
       await client.connect();
+      console.log('Connected to MongoDB at:', uri);
       db = client.db();
       
       // Initialize collections
@@ -30,7 +31,7 @@ export async function connectToDatabase() {
       collections.tables = db.collection('tables');
       collections.staff = db.collection('staff');
       
-      console.log('Connected to MongoDB');
+      console.log('Collections initialized:', Object.keys(collections).join(', '));
     }
     return { db, collections };
   } catch (error) {
