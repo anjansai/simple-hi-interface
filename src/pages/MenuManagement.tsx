@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -13,11 +14,11 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { getAllMenuItems, MenuItem, deleteMenuItem } from '@/services/menuService';
 
-// Menu categories
+// Menu categories - matching database Variant field values
 const menuCategories = [
   'All Items',
   'Starters',
-  'Main Courses',
+  'Main course',
   'Desserts', 
   'Beverages',
   'Specials'
@@ -37,14 +38,6 @@ const MenuManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
-    onError: (err: any) => {
-      console.error("Error fetching menu items:", err);
-      toast({
-        title: "Error loading menu items",
-        description: "Could not connect to the database. Please ensure your server is running.",
-        variant: "destructive",
-      });
-    }
   });
 
   // Delete menu item mutation
@@ -79,14 +72,20 @@ const MenuManagement: React.FC = () => {
     if (!Array.isArray(menuItems)) return [];
     
     return menuItems.filter(item => {
+      // First ensure that properties exist to prevent errors
+      if (!item) return false;
+      
       // Check if the category matches or if we're showing all items
-      const categoryMatch = activeCategory === 'All Items' || item.category === activeCategory;
+      const categoryMatch = activeCategory === 'All Items' || 
+                           item.Variant === activeCategory;
       
       // Safely check if the search term matches name or description
-      const searchTermMatch = !searchTerm || (
-        (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) || 
-        (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+      const itemName = item.itemName || '';
+      const itemCode = item.itemCode || '';
+      
+      const searchTermMatch = !searchTerm || 
+        itemName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        itemCode.toLowerCase().includes(searchTerm.toLowerCase());
       
       return categoryMatch && searchTermMatch;
     });
@@ -150,7 +149,7 @@ const MenuManagement: React.FC = () => {
                       <div className="aspect-video w-full overflow-hidden bg-muted">
                         <img
                           src={item.imageUrl || "https://placehold.co/200x150"}
-                          alt={item.name}
+                          alt={item.itemName || "Menu Item"}
                           className="h-full w-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -161,11 +160,13 @@ const MenuManagement: React.FC = () => {
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-semibold">{item.name}</h3>
-                            <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                            <h3 className="font-semibold">{item.itemName || "Untitled Item"}</h3>
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {item.itemCode} {item.StarterType ? `- ${item.StarterType}` : ""}
+                            </p>
                           </div>
                           <div className="font-medium">
-                            ${typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}
+                            ₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}
                           </div>
                         </div>
                         <div className="mt-4 flex gap-2">

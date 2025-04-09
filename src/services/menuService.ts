@@ -1,17 +1,35 @@
-
-// MenuItem interface defines the structure of a menu item
+// MenuItem interface defines the structure of a menu item from the database
 export interface MenuItem {
   _id?: string;
-  name: string;
-  category: string;
-  price: number;
-  description: string;
+  itemName: string;
+  itemCode: string;
+  MRP: number;
+  Type: number;
+  Variant: string;
+  StarterType?: string;
+  available?: boolean;
+  // For compatibility with existing code, we'll map these fields
+  name?: string;
+  category?: string;
+  price?: number;
+  description?: string;
   imageUrl?: string;
-  available: boolean;
 }
 
 // Base URL for the API
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+
+// Helper to map type codes to categories
+export function getTypeCategory(type: number): string {
+  switch (type) {
+    case 222: return 'Starters';
+    case 223: return 'Main Courses';
+    case 224: return 'Desserts';
+    case 225: return 'Beverages';
+    case 226: return 'Specials';
+    default: return 'Other';
+  }
+}
 
 // Get all menu items
 export async function getAllMenuItems(): Promise<MenuItem[]> {
@@ -27,10 +45,20 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
     const data = await response.json();
     console.log("Menu items received:", data);
     
-    // Ensure we have proper data and validate price is a number
+    // Ensure we have proper data and normalize fields
     const validatedData = Array.isArray(data) ? data.map(item => ({
       ...item,
-      price: typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0
+      // Keep original fields
+      itemName: item.itemName || '',
+      itemCode: item.itemCode || '',
+      MRP: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
+      Type: item.Type,
+      Variant: item.Variant || '',
+      // Map to compatibility fields for existing code
+      name: item.itemName || '',
+      category: item.Variant || getTypeCategory(item.Type),
+      price: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
+      description: `${item.itemCode || ''} - ${item.StarterType || ''}`
     })) : [];
     
     return validatedData;
