@@ -6,7 +6,7 @@ export interface MenuItem {
   category: string;
   price: number;
   description: string;
-  imageUrl: string;
+  imageUrl?: string;
   available: boolean;
 }
 
@@ -14,13 +14,19 @@ export interface MenuItem {
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 // Get all menu items
-export async function getAllMenuItems() {
+export async function getAllMenuItems(): Promise<MenuItem[]> {
   try {
+    console.log("Fetching menu items from:", `${API_BASE}/menu`);
     const response = await fetch(`${API_BASE}/menu`);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
     }
-    return await response.json();
+    
+    const data = await response.json();
+    console.log("Menu items received:", data);
+    return data;
   } catch (error) {
     console.error("Failed to fetch menu items:", error);
     throw error;
@@ -28,7 +34,7 @@ export async function getAllMenuItems() {
 }
 
 // Get menu items by category
-export async function getMenuItemsByCategory(category: string) {
+export async function getMenuItemsByCategory(category: string): Promise<MenuItem[]> {
   try {
     const response = await fetch(`${API_BASE}/menu/category/${category}`);
     if (!response.ok) {
@@ -42,7 +48,7 @@ export async function getMenuItemsByCategory(category: string) {
 }
 
 // Add a new menu item
-export async function addMenuItem(item: MenuItem) {
+export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
   try {
     const response = await fetch(`${API_BASE}/menu`, {
       method: 'POST',
@@ -62,7 +68,7 @@ export async function addMenuItem(item: MenuItem) {
 }
 
 // Update a menu item
-export async function updateMenuItem(id: string, updates: Partial<MenuItem>) {
+export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Promise<{ success: boolean }> {
   try {
     const response = await fetch(`${API_BASE}/menu/${id}`, {
       method: 'PUT',
@@ -82,7 +88,7 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>) {
 }
 
 // Delete a menu item
-export async function deleteMenuItem(id: string) {
+export async function deleteMenuItem(id: string): Promise<{ success: boolean }> {
   try {
     const response = await fetch(`${API_BASE}/menu/${id}`, {
       method: 'DELETE',

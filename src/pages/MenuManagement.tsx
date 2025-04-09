@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -29,19 +30,21 @@ const MenuManagement: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All Items');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Fetch menu items using React Query with corrected error handling
-  const { data: menuItems = [], isLoading, error } = useQuery({
+  // Fetch menu items using React Query
+  const { 
+    data: menuItems = [], 
+    isLoading, 
+    error 
+  } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
-    meta: {
-      onError: (err: any) => {
-        toast({
-          title: "Error loading menu items",
-          description: "Could not connect to the database. Please ensure your local server is running.",
-          variant: "destructive",
-        });
-        console.error("Error fetching menu items:", err);
-      }
+    onError: (err: any) => {
+      console.error("Error fetching menu items:", err);
+      toast({
+        title: "Error loading menu items",
+        description: "Could not connect to the database. Please ensure your server is running.",
+        variant: "destructive",
+      });
     }
   });
 
@@ -77,21 +80,13 @@ const MenuManagement: React.FC = () => {
     return (menuItems as MenuItem[]).filter(item => 
       (activeCategory === 'All Items' || item.category === activeCategory) &&
       (item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+       (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())))
     );
   }, [menuItems, activeCategory, searchTerm]);
 
-  // Add an effect to show a toast message when errors occur
-  React.useEffect(() => {
-    if (error) {
-      toast({
-        title: "Error loading menu items",
-        description: "Could not connect to the database. Please ensure your local server is running on port 5000.",
-        variant: "destructive",
-      });
-      console.error("Error fetching menu items:", error);
-    }
-  }, [error, toast]);
+  if (error) {
+    console.error("Error in MenuManagement component:", error);
+  }
 
   return (
     <div className="space-y-6">
@@ -126,7 +121,7 @@ const MenuManagement: React.FC = () => {
         </div>
       ) : error ? (
         <div className="text-center p-8 border rounded-lg">
-          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running on port 5000.</p>
+          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running.</p>
         </div>
       ) : (
         <Tabs defaultValue="All Items" value={activeCategory} onValueChange={setActiveCategory}>
@@ -141,49 +136,50 @@ const MenuManagement: React.FC = () => {
           {menuCategories.map((category) => (
             <TabsContent key={category} value={category} className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredItems.map((item) => (
-                  <Card key={item._id?.toString()} className="overflow-hidden">
-                    <div className="aspect-video w-full overflow-hidden bg-muted">
-                      <img
-                        src={item.imageUrl || "https://placehold.co/200x150"}
-                        alt={item.name}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = "https://placehold.co/200x150";
-                        }}
-                      />
-                    </div>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold">{item.name}</h3>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                {filteredItems.length > 0 ? (
+                  filteredItems.map((item) => (
+                    <Card key={item._id} className="overflow-hidden">
+                      <div className="aspect-video w-full overflow-hidden bg-muted">
+                        <img
+                          src={item.imageUrl || "https://placehold.co/200x150"}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = "https://placehold.co/200x150";
+                          }}
+                        />
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold">{item.name}</h3>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                          </div>
+                          <div className="font-medium">${item.price.toFixed(2)}</div>
                         </div>
-                        <div className="font-medium">${item.price.toFixed(2)}</div>
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1">
-                          <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive" 
-                          className="flex-1"
-                          onClick={() => handleDeleteItem(item._id?.toString() || '')}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="mt-4 flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1">
+                            <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            className="flex-1"
+                            onClick={() => handleDeleteItem(item._id || '')}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="col-span-full text-center p-8 border rounded-lg">
+                    <p className="text-muted-foreground">No items found in this category. Try adjusting your search or filter.</p>
+                  </div>
+                )}
               </div>
-              
-              {filteredItems.length === 0 && (
-                <div className="text-center p-8 border rounded-lg">
-                  <p className="text-muted-foreground">No items found. Try adjusting your search or filter.</p>
-                </div>
-              )}
             </TabsContent>
           ))}
         </Tabs>
