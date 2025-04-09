@@ -26,10 +26,10 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
     
     const data = await response.json();
     console.log("Menu items received:", data);
-    return data;
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error("Failed to fetch menu items:", error);
-    throw error;
+    return []; // Return empty array instead of throwing
   }
 }
 
@@ -40,10 +40,11 @@ export async function getMenuItemsByCategory(category: string): Promise<MenuItem
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error(`Failed to fetch menu items for category ${category}:`, error);
-    throw error;
+    return []; // Return empty array instead of throwing
   }
 }
 

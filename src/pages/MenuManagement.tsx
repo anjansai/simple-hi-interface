@@ -38,6 +38,9 @@ const MenuManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
+    onSuccess: () => {
+      console.log("Menu items fetched successfully");
+    },
     onError: (err: any) => {
       console.error("Error fetching menu items:", err);
       toast({
@@ -75,13 +78,22 @@ const MenuManagement: React.FC = () => {
     }
   };
   
-  // Filter items based on active category and search term
+  // Filter items based on active category and search term with null/undefined checks
   const filteredItems = React.useMemo(() => {
-    return (menuItems as MenuItem[]).filter(item => 
-      (activeCategory === 'All Items' || item.category === activeCategory) &&
-      (item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())))
-    );
+    if (!Array.isArray(menuItems)) return [];
+    
+    return menuItems.filter(item => {
+      // Check if the category matches or if we're showing all items
+      const categoryMatch = activeCategory === 'All Items' || item.category === activeCategory;
+      
+      // Safely check if the search term matches name or description
+      const searchTermMatch = !searchTerm || (
+        (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) || 
+        (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+      
+      return categoryMatch && searchTermMatch;
+    });
   }, [menuItems, activeCategory, searchTerm]);
 
   if (error) {
@@ -166,7 +178,7 @@ const MenuManagement: React.FC = () => {
                             size="sm" 
                             variant="destructive" 
                             className="flex-1"
-                            onClick={() => handleDeleteItem(item._id || '')}
+                            onClick={() => item._id && handleDeleteItem(item._id)}
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                           </Button>
