@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,7 +37,7 @@ const MenuManagement: React.FC = () => {
       onError: (err: any) => {
         toast({
           title: "Error loading menu items",
-          description: "Could not connect to the database. Please ensure MongoDB is running.",
+          description: "Could not connect to the database. Please ensure your local server is running.",
           variant: "destructive",
         });
         console.error("Error fetching menu items:", err);
@@ -87,7 +86,7 @@ const MenuManagement: React.FC = () => {
     if (error) {
       toast({
         title: "Error loading menu items",
-        description: "Could not connect to the database. Please ensure MongoDB is running.",
+        description: "Could not connect to the database. Please ensure your local server is running on port 5000.",
         variant: "destructive",
       });
       console.error("Error fetching menu items:", error);
@@ -127,7 +126,7 @@ const MenuManagement: React.FC = () => {
         </div>
       ) : error ? (
         <div className="text-center p-8 border rounded-lg">
-          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure MongoDB is running.</p>
+          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running on port 5000.</p>
         </div>
       ) : (
         <Tabs defaultValue="All Items" value={activeCategory} onValueChange={setActiveCategory}>
