@@ -26,7 +26,14 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
     
     const data = await response.json();
     console.log("Menu items received:", data);
-    return Array.isArray(data) ? data : [];
+    
+    // Ensure we have proper data and validate price is a number
+    const validatedData = Array.isArray(data) ? data.map(item => ({
+      ...item,
+      price: typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0
+    })) : [];
+    
+    return validatedData;
   } catch (error) {
     console.error("Failed to fetch menu items:", error);
     return []; // Return empty array instead of throwing

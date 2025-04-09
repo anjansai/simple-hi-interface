@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -38,9 +37,6 @@ const MenuManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
-    onSuccess: () => {
-      console.log("Menu items fetched successfully");
-    },
     onError: (err: any) => {
       console.error("Error fetching menu items:", err);
       toast({
@@ -168,7 +164,9 @@ const MenuManagement: React.FC = () => {
                             <h3 className="font-semibold">{item.name}</h3>
                             <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
                           </div>
-                          <div className="font-medium">${item.price.toFixed(2)}</div>
+                          <div className="font-medium">
+                            ${typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}
+                          </div>
                         </div>
                         <div className="mt-4 flex gap-2">
                           <Button size="sm" variant="outline" className="flex-1">
