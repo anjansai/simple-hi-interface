@@ -67,14 +67,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Menu categories - matching database Variant field values
 const menuCategories = [
   'All Items',
   'Starters',
   'Main course',
   'Desserts', 
   'Beverages',
-  'Specials'
+  'Specials',
+  'Others'
 ];
 
 const MenuManagement: React.FC = () => {
@@ -91,8 +91,9 @@ const MenuManagement: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [pendingUpdateData, setPendingUpdateData] = useState<MenuItem | null>(null);
   
-  // Fetch menu items using React Query
   const { 
     data: menuItems = [], 
     isLoading, 
@@ -102,13 +103,11 @@ const MenuManagement: React.FC = () => {
     queryFn: getAllMenuItems,
   });
 
-  // Fetch catalog settings
   const { data: catalogSettings } = useQuery({
     queryKey: ['settings', 'catalog'],
     queryFn: () => fetchSettings('catalog'),
   });
 
-  // Delete menu item mutation
   const deleteMutation = useMutation({
     mutationFn: deleteMenuItem,
     onSuccess: () => {
@@ -130,7 +129,6 @@ const MenuManagement: React.FC = () => {
     }
   });
 
-  // Add menu item mutation
   const addMutation = useMutation({
     mutationFn: addMenuItem,
     onSuccess: () => {
@@ -144,13 +142,12 @@ const MenuManagement: React.FC = () => {
     onError: (err: any) => {
       toast({
         title: "Error",
-        description: "Failed to validate item name",
+        description: "Failed to add menu item",
         variant: "destructive",
       });
     }
   });
 
-  // Update menu item mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string, data: Partial<MenuItem> }) => 
       updateMenuItem(id, data),
@@ -161,6 +158,8 @@ const MenuManagement: React.FC = () => {
         description: "The menu item has been successfully updated",
       });
       setIsEditModalOpen(false);
+      setIsUpdateDialogOpen(false);
+      setPendingUpdateData(null);
     },
     onError: (err: any) => {
       toast({
@@ -168,10 +167,11 @@ const MenuManagement: React.FC = () => {
         description: err.message || "There was a problem updating the menu item",
         variant: "destructive",
       });
+      setIsUpdateDialogOpen(false);
+      setPendingUpdateData(null);
     }
   });
 
-  // Handle delete menu item
   const handleDeleteItem = (id: string) => {
     setDeleteItemId(id);
     setIsDeleteDialogOpen(true);
@@ -183,9 +183,7 @@ const MenuManagement: React.FC = () => {
     }
   };
   
-  // Handle add new item
   const handleAddItem = async (data: MenuItem) => {
-    // Check if item name already exists
     try {
       const nameExists = await checkItemNameExists(data.itemName);
       if (nameExists) {
@@ -208,12 +206,10 @@ const MenuManagement: React.FC = () => {
     }
   };
 
-  // Handle edit item
   const handleEditItem = async (data: MenuItem) => {
     if (!selectedItem?._id) return;
     
     try {
-      // Check if updated name already exists (excluding this item)
       const nameExists = await checkItemNameExists(data.itemName, selectedItem._id);
       if (nameExists) {
         toast({
@@ -224,46 +220,49 @@ const MenuManagement: React.FC = () => {
         return;
       }
       
-      updateMutation.mutate({ 
-        id: selectedItem._id, 
-        data: {
-          ...data,
-          // Keep the original itemCode and Type/Variant
-          itemCode: selectedItem.itemCode,
-          Type: selectedItem.Type,
-          Variant: selectedItem.Variant
-        }
+      setPendingUpdateData({
+        ...data,
+        _id: selectedItem._id
       });
+      setIsUpdateDialogOpen(true);
     } catch (error) {
       console.error("Error updating item:", error);
     }
   };
 
-  // Open item detail modal
+  const confirmUpdate = () => {
+    if (pendingUpdateData && selectedItem?._id) {
+      updateMutation.mutate({ 
+        id: selectedItem._id, 
+        data: pendingUpdateData
+      });
+    }
+  };
+
+  const cancelUpdate = () => {
+    setIsUpdateDialogOpen(false);
+    setPendingUpdateData(null);
+  };
+
   const openItemDetail = (item: MenuItem) => {
     setSelectedItem(item);
     setIsDetailModalOpen(true);
   };
 
-  // Open edit modal
   const openEditModal = (item: MenuItem) => {
     setSelectedItem(item);
     setIsEditModalOpen(true);
   };
 
-  // Filter items based on active category and search term with null/undefined checks
   const filteredItems = React.useMemo(() => {
     if (!Array.isArray(menuItems)) return [];
     
     return menuItems.filter(item => {
-      // First ensure that properties exist to prevent errors
       if (!item) return false;
       
-      // Check if the category matches or if we're showing all items
       const categoryMatch = activeCategory === 'All Items' || 
-                           item.Variant === activeCategory;
+                           item.Category === activeCategory;
       
-      // Safely check if the search term matches name or description
       const itemName = item.itemName || '';
       const itemCode = item.itemCode || '';
       
@@ -275,59 +274,48 @@ const MenuManagement: React.FC = () => {
     });
   }, [menuItems, activeCategory, searchTerm]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  // Generate page numbers for pagination
   const generatePageNumbers = () => {
     const pages = [];
     const maxPagesToShow = 5;
     
     if (totalPages <= maxPagesToShow) {
-      // If total pages are less than max to show, display all pages
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
       }
     } else {
-      // Always include first page
       pages.push(1);
       
-      // Calculate start and end of middle pages
       let startPage = Math.max(2, currentPage - 1);
       let endPage = Math.min(totalPages - 1, currentPage + 1);
       
-      // Adjust if we're at the start or end
       if (currentPage <= 2) {
         endPage = 3;
       } else if (currentPage >= totalPages - 1) {
         startPage = totalPages - 2;
       }
       
-      // Add ellipsis if needed
       if (startPage > 2) {
         pages.push('ellipsis');
       }
       
-      // Add middle pages
       for (let i = startPage; i <= endPage; i++) {
         pages.push(i);
       }
       
-      // Add ellipsis if needed
       if (endPage < totalPages - 1) {
         pages.push('ellipsis');
       }
       
-      // Always include last page
       pages.push(totalPages);
     }
     
@@ -350,7 +338,6 @@ const MenuManagement: React.FC = () => {
         </Button>
       </div>
       
-      {/* Search and filter controls */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative w-full sm:w-72">
@@ -372,7 +359,7 @@ const MenuManagement: React.FC = () => {
             value={itemsPerPage.toString()}
             onValueChange={(value) => {
               setItemsPerPage(Number(value));
-              setCurrentPage(1); // Reset to first page when changing items per page
+              setCurrentPage(1);
             }}
           >
             <SelectTrigger className="w-20">
@@ -404,7 +391,6 @@ const MenuManagement: React.FC = () => {
         </div>
       </div>
       
-      {/* Pagination controls - top */}
       {filteredItems.length > itemsPerPage && (
         <Pagination>
           <PaginationContent>
@@ -573,7 +559,7 @@ const MenuManagement: React.FC = () => {
                           >
                             <TableCell className="font-medium">{item.itemName}</TableCell>
                             <TableCell>{item.itemCode}</TableCell>
-                            <TableCell>{item.Variant}</TableCell>
+                            <TableCell>{item.Category}</TableCell>
                             <TableCell>₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</TableCell>
                             {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
                               <TableCell className="text-right">
@@ -626,7 +612,6 @@ const MenuManagement: React.FC = () => {
         </Tabs>
       )}
       
-      {/* Modals and dialogs */}
       <ItemFormModal
         open={isAddModalOpen}
         onOpenChange={setIsAddModalOpen}
@@ -662,6 +647,21 @@ const MenuManagement: React.FC = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Update</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to update this menu item? This will modify the item details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelUpdate}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmUpdate}>Update</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

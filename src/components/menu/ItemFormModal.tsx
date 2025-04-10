@@ -1,6 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   Dialog, 
   DialogContent, 
@@ -27,8 +29,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { MenuItem, generateItemCode, getCategoryType } from '@/services/menuService';
+import { MenuItem, generateItemCode } from '@/services/menuService';
 import { useToast } from '@/hooks/use-toast';
+
+// Define validation schema for the form
+const formSchema = z.object({
+  itemName: z.string().min(1, "Item name is required"),
+  itemCode: z.string(),
+  MRP: z.number().min(0, "Price must be 0 or greater"),
+  Category: z.string().min(1, "Category is required"),
+  description: z.string().optional(),
+  Type: z.number(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 interface ItemFormModalProps {
   open: boolean;
@@ -53,15 +67,17 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>(item?.Category || '');
   
-  const form = useForm<MenuItem>({
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       itemName: item?.itemName || '',
       itemCode: item?.itemCode || '',
-      MRP: item?.MRP || 0,
+      MRP: item?.MRP || undefined,
       Category: item?.Category || '',
       description: item?.description || '',
       Type: item?.Type || 0,
     },
+    mode: "onChange"
   });
   
   // Reset form when modal opens/closes or item changes
@@ -70,7 +86,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       form.reset({
         itemName: item.itemName || '',
         itemCode: item.itemCode || '',
-        MRP: item.MRP || 0,
+        MRP: item.MRP || undefined,
         Category: item.Category || '',
         description: item.description || '',
         Type: item.Type || 0,
@@ -80,7 +96,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       form.reset({
         itemName: '',
         itemCode: '',
-        MRP: 0,
+        MRP: undefined,
         Category: '',
         description: '',
         Type: 0,
@@ -92,7 +108,19 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const handleCategoryChange = async (value: string) => {
     setSelectedCategory(value);
     form.setValue('Category', value);
-    form.setValue('Type', getCategoryType(value));
+    
+    // Set a default type based on category (can be modified as needed)
+    let typeValue = 0;
+    switch(value) {
+      case 'Starters': typeValue = 222; break;
+      case 'Main course': typeValue = 223; break;
+      case 'Desserts': typeValue = 224; break;
+      case 'Beverages': typeValue = 225; break;
+      case 'Specials': typeValue = 226; break;
+      case 'Others': typeValue = 227; break;
+      default: typeValue = 0;
+    }
+    form.setValue('Type', typeValue);
     
     if (!isEdit) {
       try {
@@ -127,14 +155,17 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
     }
   };
 
-  const handleSubmit = form.handleSubmit(async (data) => {
+  const handleSubmit = async (data: FormValues) => {
     try {
-      await onSubmit(data);
-      onOpenChange(false);
+      const itemData: MenuItem = {
+        ...data,
+        MRP: data.MRP || 0
+      };
+      await onSubmit(itemData);
     } catch (error) {
       console.error("Form submission error:", error);
     }
-  });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,7 +175,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="itemName"
@@ -233,7 +264,12 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                       type="number" 
                       min="0"
                       step="0.01"
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} 
+                      value={field.value === undefined ? '' : field.value}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                        field.onChange(value);
+                      }}
+                      placeholder="Enter price"
                     />
                   </FormControl>
                   <FormMessage />
@@ -259,7 +295,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading || !form.formState.isValid}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEdit ? 'Update' : 'Save'}
               </Button>

@@ -6,6 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { fetchSettings, updateSettings } from '@/services/settingsService';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -14,6 +24,13 @@ const Settings = () => {
     itemDelete: false,
     itemEdit: true
   });
+  
+  // Confirmation dialog state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingSettingChange, setPendingSettingChange] = useState<{
+    field: 'itemDelete' | 'itemEdit';
+    value: boolean;
+  } | null>(null);
 
   // Fetch current settings
   const { data: settings, isLoading } = useQuery({
@@ -40,6 +57,7 @@ const Settings = () => {
         title: "Settings updated",
         description: "Your changes have been saved successfully",
       });
+      setPendingSettingChange(null);
     },
     onError: (err) => {
       toast({
@@ -48,21 +66,46 @@ const Settings = () => {
         variant: "destructive",
       });
       console.error("Settings update error:", err);
+      
+      // Revert UI state on error
+      if (pendingSettingChange) {
+        setCatalogSettings(prev => ({
+          ...prev,
+          [pendingSettingChange.field]: !pendingSettingChange.value
+        }));
+      }
+      setPendingSettingChange(null);
     },
   });
 
-  // Handle toggle changes
-  const handleToggleChange = (field: 'itemDelete' | 'itemEdit', value: boolean) => {
-    const updatedSettings = {
-      ...catalogSettings,
-      [field]: value
-    };
-    
-    setCatalogSettings(updatedSettings);
-    updateSettingsMutation.mutate({
-      type: 'catalog',
-      ...updatedSettings
-    });
+  // Handle toggle change request
+  const handleToggleChangeRequest = (field: 'itemDelete' | 'itemEdit', value: boolean) => {
+    setPendingSettingChange({ field, value });
+    setConfirmDialogOpen(true);
+  };
+  
+  // Confirm setting change
+  const confirmSettingChange = () => {
+    if (pendingSettingChange) {
+      const { field, value } = pendingSettingChange;
+      const updatedSettings = {
+        ...catalogSettings,
+        [field]: value
+      };
+      
+      setCatalogSettings(updatedSettings);
+      updateSettingsMutation.mutate({
+        type: 'catalog',
+        ...updatedSettings
+      });
+      setConfirmDialogOpen(false);
+    }
+  };
+  
+  // Cancel setting change
+  const cancelSettingChange = () => {
+    setPendingSettingChange(null);
+    setConfirmDialogOpen(false);
   };
 
   return (
@@ -92,8 +135,8 @@ const Settings = () => {
               </div>
               <Switch 
                 checked={catalogSettings.itemDelete}
-                onCheckedChange={(checked) => handleToggleChange('itemDelete', checked)}
-                disabled={isLoading}
+                onCheckedChange={(checked) => handleToggleChangeRequest('itemDelete', checked)}
+                disabled={isLoading || updateSettingsMutation.isPending}
               />
             </div>
             
@@ -108,13 +151,37 @@ const Settings = () => {
               </div>
               <Switch 
                 checked={catalogSettings.itemEdit}
-                onCheckedChange={(checked) => handleToggleChange('itemEdit', checked)}
-                disabled={isLoading}
+                onCheckedChange={(checked) => handleToggleChangeRequest('itemEdit', checked)}
+                disabled={isLoading || updateSettingsMutation.isPending}
               />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Settings Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingSettingChange?.field === 'itemDelete' ? (
+                pendingSettingChange?.value 
+                  ? "Are you sure you want to enable item deletion? This will allow users to permanently remove menu items."
+                  : "Are you sure you want to disable item deletion? Users will no longer be able to delete menu items."
+              ) : (
+                pendingSettingChange?.value
+                  ? "Are you sure you want to enable item editing? This will allow users to modify menu items."
+                  : "Are you sure you want to disable item editing? Users will no longer be able to edit menu items."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelSettingChange}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSettingChange}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

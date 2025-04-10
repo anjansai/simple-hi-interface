@@ -5,7 +5,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/services/menuService';
@@ -19,7 +19,7 @@ interface ItemDetailModalProps {
 const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   open,
   onOpenChange,
-  item
+  item,
 }) => {
   if (!item) return null;
 
@@ -27,59 +27,52 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{item.itemName}</DialogTitle>
+          <DialogTitle>{item.itemName || 'Item Details'}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
-          {item.imageUrl && (
-            <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
-              <img
-                src={item.imageUrl || "https://placehold.co/400x300"}
-                alt={item.itemName}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = "https://placehold.co/400x300";
-                }}
-              />
-            </div>
-          )}
-          
-          <div className="grid grid-cols-2 gap-2">
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Item Code</p>
-              <p>{item.itemCode}</p>
-            </div>
-            
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Price</p>
-              <p>₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</p>
-            </div>
-            
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Category</p>
-              <p>{item.Category}</p>
-            </div>
-            
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Type Code</p>
-              <p>{item.Type}</p>
-            </div>
+          <div className="aspect-video w-full overflow-hidden bg-muted rounded-md">
+            <img
+              src={item.imageUrl || "https://placehold.co/600x400"}
+              alt={item.itemName || "Menu Item"}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "https://placehold.co/600x400";
+              }}
+            />
           </div>
           
-          {item.description && (
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Description</p>
-              <p className="mt-1">{item.description}</p>
+          <div className="grid gap-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Item Code:</span>
+              <span className="font-medium">{item.itemCode}</span>
             </div>
-          )}
-          
-          {item.StarterType && (
-            <div className="text-sm">
-              <p className="font-medium text-muted-foreground">Starter Type</p>
-              <p>{item.StarterType}</p>
+            
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Category:</span>
+              <span className="font-medium">{item.Category}</span>
             </div>
-          )}
+            
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price:</span>
+              <span className="font-medium">₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</span>
+            </div>
+            
+            {item.StarterType && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Starter Type:</span>
+                <span className="font-medium">{item.StarterType}</span>
+              </div>
+            )}
+            
+            {item.description && (
+              <div>
+                <span className="text-muted-foreground block mb-1">Description:</span>
+                <p className="text-sm">{item.description}</p>
+              </div>
+            )}
+          </div>
         </div>
         
         <DialogFooter>

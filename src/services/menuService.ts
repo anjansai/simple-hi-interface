@@ -1,3 +1,4 @@
+
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -44,7 +45,7 @@ export function getCategoryType(category: string): number {
   }
 }
 
-// Generate a unique item code (new implementation - sequential numbering only)
+// Generate a unique item code (sequential numbering only)
 export async function generateItemCode(): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/settings/generate-code`);
