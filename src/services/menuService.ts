@@ -4,7 +4,7 @@ export interface MenuItem {
   itemCode: string;
   MRP: number;
   Type: number;
-  Variant: string;
+  Category: string;
   StarterType?: string;
   available?: boolean;
   // For compatibility with existing code, we'll map these fields
@@ -23,11 +23,11 @@ export function getTypeCategory(type: number): string {
   switch (type) {
     case 222: return 'Starters';
     case 223: return 'Main course';
-    case 224: return 'Desserts'; 
+    case 224: return 'Desserts';
     case 225: return 'Beverages';
     case 226: return 'Specials';
-    case 227: return 'Other';
-    default: return 'Other';
+    case 227: return 'Others';
+    default: return 'Others';
   }
 }
 
@@ -39,29 +39,15 @@ export function getCategoryType(category: string): number {
     case 'Desserts': return 224;
     case 'Beverages': return 225;
     case 'Specials': return 226;
-    case 'Other': return 227;
+    case 'Others': return 227;
     default: return 227;
   }
 }
 
-// Get category prefix for item code
-export function getCategoryPrefix(category: string): string {
-  switch (category) {
-    case 'Starters': return 'SC';
-    case 'Main course': return 'MC';
-    case 'Desserts': return 'D';
-    case 'Beverages': return 'B';
-    case 'Specials': return 'S';
-    case 'Other': return 'OT';
-    default: return 'OT';
-  }
-}
-
-// Generate a unique item code based on category
-export async function generateItemCode(category: string): Promise<string> {
+// Generate a unique item code (new implementation - sequential numbering only)
+export async function generateItemCode(): Promise<string> {
   try {
-    const prefix = getCategoryPrefix(category);
-    const response = await fetch(`${API_BASE}/settings/generate-code?prefix=${prefix}`);
+    const response = await fetch(`${API_BASE}/settings/generate-code`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -117,12 +103,12 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
       itemCode: item.itemCode || '',
       MRP: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
       Type: item.Type,
-      Variant: item.Variant || '',
+      Category: item.Category || '',
+      description: item.description || '',
       // Map to compatibility fields for existing code
       name: item.itemName || '',
-      category: item.Variant || getTypeCategory(item.Type),
-      price: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
-      description: item.description || `${item.itemCode || ''} - ${item.StarterType || ''}`
+      category: item.Category || getTypeCategory(item.Type),
+      price: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0
     })) : [];
     
     return validatedData;

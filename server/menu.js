@@ -16,7 +16,7 @@ async function getAllMenuItems() {
 async function getMenuItemsByCategory(category) {
   try {
     await connectToDatabase();
-    return await collections.menu.find({ Variant: category }).toArray();
+    return await collections.menu.find({ Category: category }).toArray();
   } catch (error) {
     console.error(`Failed to fetch menu items for category ${category}:`, error);
     throw error;

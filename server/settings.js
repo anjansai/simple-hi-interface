@@ -29,12 +29,13 @@ async function updateSettings(type, updates) {
   }
 }
 
-// Generate unique item code
-async function generateUniqueCode(prefix) {
+// Generate unique sequential item code
+async function generateUniqueCode() {
   try {
     await connectToDatabase();
-    const codeRegex = new RegExp(`^${prefix}\\d+$`);
-    const items = await collections.menu.find({ itemCode: { $regex: codeRegex } })
+    
+    // Find all items and sort by itemCode to find the highest code
+    const items = await collections.menu.find({})
       .sort({ itemCode: -1 })
       .toArray();
     
@@ -43,6 +44,8 @@ async function generateUniqueCode(prefix) {
     if (items.length > 0) {
       // Extract numbers from existing codes and find the highest
       const numbers = items.map(item => {
+        if (!item.itemCode) return 0;
+        
         const match = item.itemCode.match(/\d+$/);
         return match ? parseInt(match[0], 10) : 0;
       });
@@ -52,9 +55,9 @@ async function generateUniqueCode(prefix) {
       }
     }
     
-    return `${prefix}${nextNumber}`;
+    return `${nextNumber}`;
   } catch (error) {
-    console.error(`Failed to generate unique code with prefix ${prefix}:`, error);
+    console.error(`Failed to generate unique code:`, error);
     throw error;
   }
 }

@@ -44,6 +44,17 @@ app.get('/api/menu/category/:category', async (req, res) => {
   }
 });
 
+app.get('/api/menu/check-name', async (req, res) => {
+  try {
+    const { name, excludeId } = req.query;
+    const nameExists = await menuRoutes.checkItemNameExists(name, excludeId);
+    res.json({ exists: nameExists });
+  } catch (error) {
+    console.error('Error checking item name:', error);
+    res.status(500).json({ error: 'Failed to check item name' });
+  }
+});
+
 app.post('/api/menu', async (req, res) => {
   try {
     // Check if item name already exists
@@ -100,10 +111,10 @@ app.delete('/api/menu/:id', async (req, res) => {
   }
 });
 
-// Generate unique item code
-app.get('/api/menu/generate-code/:prefix', async (req, res) => {
+// Generate unique item code - new sequential approach
+app.get('/api/settings/generate-code', async (req, res) => {
   try {
-    const code = await settingsRoutes.generateUniqueCode(req.params.prefix);
+    const code = await settingsRoutes.generateUniqueCode();
     res.json({ code });
   } catch (error) {
     console.error('Error generating unique code:', error);

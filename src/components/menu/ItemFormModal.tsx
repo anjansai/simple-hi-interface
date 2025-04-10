@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { MenuItem, generateItemCode, getTypeCategory } from '@/services/menuService';
+import { MenuItem, generateItemCode, getCategoryType } from '@/services/menuService';
 import { useToast } from '@/hooks/use-toast';
 
 interface ItemFormModalProps {
@@ -97,7 +97,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
     if (!isEdit) {
       try {
         setIsGeneratingCode(true);
-        const code = await generateItemCode(value);
+        const code = await generateItemCode();
         form.setValue('itemCode', code);
       } catch (error) {
         toast({
@@ -112,11 +112,9 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
   };
 
   const handleRegenerateCode = async () => {
-    if (!selectedCategory) return;
-    
     try {
       setIsGeneratingCode(true);
-      const code = await generateItemCode(selectedCategory);
+      const code = await generateItemCode();
       form.setValue('itemCode', code);
     } catch (error) {
       toast({
@@ -132,6 +130,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
       await onSubmit(data);
+      onOpenChange(false);
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -168,7 +167,6 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   <FormItem>
                     <FormLabel>Category*</FormLabel>
                     <Select
-                      disabled={isEdit}
                       onValueChange={handleCategoryChange}
                       value={field.value}
                     >
@@ -201,7 +199,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                       <FormControl>
                         <Input {...field} disabled placeholder="Auto-generated" />
                       </FormControl>
-                      {!isEdit && selectedCategory && (
+                      {!isEdit && (
                         <Button 
                           type="button" 
                           size="icon" 
