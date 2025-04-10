@@ -1,4 +1,3 @@
-
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -32,20 +31,7 @@ export function getTypeCategory(type: number): string {
   }
 }
 
-// Helper to map categories to type codes
-export function getCategoryType(category: string): number {
-  switch (category) {
-    case 'Starters': return 222;
-    case 'Main course': return 223;
-    case 'Desserts': return 224;
-    case 'Beverages': return 225;
-    case 'Specials': return 226;
-    case 'Others': return 227;
-    default: return 227;
-  }
-}
-
-// Generate a unique item code (sequential numbering only)
+// Generate a unique item code (sequential numbering)
 export async function generateItemCode(): Promise<string> {
   try {
     const response = await fetch(`${API_BASE}/settings/generate-code`);
@@ -58,6 +44,25 @@ export async function generateItemCode(): Promise<string> {
     return data.code;
   } catch (error) {
     console.error("Failed to generate item code:", error);
+    throw error;
+  }
+}
+
+// Check if an item code already exists
+export async function checkItemCodeExists(code: string): Promise<boolean> {
+  try {
+    const url = new URL(`${API_BASE}/menu/check-code`);
+    url.searchParams.append('code', code);
+    
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.exists;
+  } catch (error) {
+    console.error("Failed to check if item code exists:", error);
     throw error;
   }
 }
@@ -80,6 +85,57 @@ export async function checkItemNameExists(name: string, excludeId?: string): Pro
     console.error("Failed to check if item name exists:", error);
     throw error;
   }
+}
+
+// Export menu items to CSV
+export function exportToCSV(items: MenuItem[]): void {
+  // Define CSV headers
+  const headers = [
+    'Item Name',
+    'Item Code',
+    'Category',
+    'Price',
+    'Type',
+    'Description',
+    'Starter Type',
+    'Available'
+  ];
+  
+  // Convert items to CSV rows
+  const rows = items.map(item => [
+    item.itemName || '',
+    item.itemCode || '',
+    item.Category || '',
+    item.MRP ? item.MRP.toString() : '0',
+    item.Type ? item.Type.toString() : '0',
+    item.description || '',
+    item.StarterType || '',
+    item.available !== undefined ? item.available.toString() : 'true'
+  ]);
+  
+  // Create CSV content
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => {
+      // Escape commas and quotes in cell values
+      const cellValue = String(cell).replace(/"/g, '""');
+      return `"${cellValue}"`;
+    }).join(','))
+  ].join('\n');
+  
+  // Create a Blob and download link
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const date = new Date().toISOString().split('T')[0];
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `menu-items-${date}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // Get all menu items
@@ -145,7 +201,8 @@ export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
       body: JSON.stringify(item),
     });
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
     }
     return await response.json();
   } catch (error) {
@@ -165,7 +222,8 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Pr
       body: JSON.stringify(updates),
     });
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
     }
     return await response.json();
   } catch (error) {

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
   Filter,
   Grid,
   List,
+  Download,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -27,7 +29,10 @@ import {
   deleteMenuItem, 
   updateMenuItem,
   addMenuItem, 
-  checkItemNameExists 
+  checkItemNameExists,
+  checkItemCodeExists,
+  generateItemCode,
+  exportToCSV,
 } from '@/services/menuService';
 import { fetchSettings } from '@/services/settingsService';
 import { 
@@ -48,8 +53,7 @@ import {
 import { 
   Pagination, 
   PaginationContent, 
-  PaginationItem, 
-  PaginationLink, 
+  PaginationItem,  
   PaginationNext, 
   PaginationPrevious 
 } from '@/components/ui/pagination';
@@ -83,7 +87,7 @@ const MenuManagement: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All Items');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [itemsPerPage, setItemsPerPage] = useState(9);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
@@ -92,7 +96,9 @@ const MenuManagement: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [isPendingAddDialogOpen, setIsPendingAddDialogOpen] = useState(false);
   const [pendingUpdateData, setPendingUpdateData] = useState<MenuItem | null>(null);
+  const [pendingAddData, setPendingAddData] = useState<MenuItem | null>(null);
   
   const { 
     data: menuItems = [], 
@@ -138,6 +144,8 @@ const MenuManagement: React.FC = () => {
         description: "The new menu item has been successfully added",
       });
       setIsAddModalOpen(false);
+      setIsPendingAddDialogOpen(false);
+      setPendingAddData(null);
     },
     onError: (err: any) => {
       toast({
@@ -145,6 +153,8 @@ const MenuManagement: React.FC = () => {
         description: "Failed to add menu item",
         variant: "destructive",
       });
+      setIsPendingAddDialogOpen(false);
+      setPendingAddData(null);
     }
   });
 
@@ -185,6 +195,7 @@ const MenuManagement: React.FC = () => {
   
   const handleAddItem = async (data: MenuItem) => {
     try {
+      // First, check if the name exists
       const nameExists = await checkItemNameExists(data.itemName);
       if (nameExists) {
         toast({
@@ -194,8 +205,10 @@ const MenuManagement: React.FC = () => {
         });
         return;
       }
-      
-      addMutation.mutate(data);
+
+      // Then set the pending data and show the confirmation dialog
+      setPendingAddData(data);
+      setIsPendingAddDialogOpen(true);
     } catch (error) {
       console.error("Error checking item name:", error);
       toast({
@@ -203,6 +216,32 @@ const MenuManagement: React.FC = () => {
         description: "Failed to validate item name",
         variant: "destructive",
       });
+    }
+  };
+
+  const confirmAdd = async () => {
+    if (!pendingAddData) return;
+    
+    try {
+      // Check if the code already exists - if it does, generate a new one
+      const codeExists = await checkItemCodeExists(pendingAddData.itemCode);
+      
+      if (codeExists) {
+        // Generate a new code
+        const newCode = await generateItemCode();
+        pendingAddData.itemCode = newCode;
+      }
+      
+      addMutation.mutate(pendingAddData);
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add the item",
+        variant: "destructive",
+      });
+      setIsPendingAddDialogOpen(false);
+      setPendingAddData(null);
     }
   };
 
@@ -244,6 +283,11 @@ const MenuManagement: React.FC = () => {
     setPendingUpdateData(null);
   };
 
+  const cancelAdd = () => {
+    setIsPendingAddDialogOpen(false);
+    setPendingAddData(null);
+  };
+
   const openItemDetail = (item: MenuItem) => {
     setSelectedItem(item);
     setIsDetailModalOpen(true);
@@ -252,6 +296,23 @@ const MenuManagement: React.FC = () => {
   const openEditModal = (item: MenuItem) => {
     setSelectedItem(item);
     setIsEditModalOpen(true);
+  };
+
+  const handleExportCsv = () => {
+    try {
+      exportToCSV(filteredItems);
+      toast({
+        title: "Export successful",
+        description: "Menu items have been exported to CSV",
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Export failed",
+        description: "There was a problem exporting the menu items",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredItems = React.useMemo(() => {
@@ -284,58 +345,25 @@ const MenuManagement: React.FC = () => {
     setCurrentPage(page);
   };
 
-  const generatePageNumbers = () => {
-    const pages = [];
-    const maxPagesToShow = 5;
-    
-    if (totalPages <= maxPagesToShow) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(1);
-      
-      let startPage = Math.max(2, currentPage - 1);
-      let endPage = Math.min(totalPages - 1, currentPage + 1);
-      
-      if (currentPage <= 2) {
-        endPage = 3;
-      } else if (currentPage >= totalPages - 1) {
-        startPage = totalPages - 2;
-      }
-      
-      if (startPage > 2) {
-        pages.push('ellipsis');
-      }
-      
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
-      }
-      
-      if (endPage < totalPages - 1) {
-        pages.push('ellipsis');
-      }
-      
-      pages.push(totalPages);
-    }
-    
-    return pages;
-  };
-
   if (error) {
     console.error("Error in MenuManagement component:", error);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Menu Management</h1>
           <p className="text-muted-foreground">Add, edit and manage your menu items</p>
         </div>
-        <Button className="w-full sm:w-auto" onClick={() => setIsAddModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add New Item
-        </Button>
+        <div className="flex gap-2">
+          <Button className="w-full sm:w-auto" onClick={handleExportCsv}>
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
+          <Button className="w-full sm:w-auto" onClick={() => setIsAddModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add New Item
+          </Button>
+        </div>
       </div>
       
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
@@ -367,10 +395,10 @@ const MenuManagement: React.FC = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="5">5</SelectItem>
-              <SelectItem value="9">9</SelectItem>
               <SelectItem value="10">10</SelectItem>
-              <SelectItem value="30">30</SelectItem>
-              <SelectItem value="40">40</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="35">35</SelectItem>
+              <SelectItem value="50">50</SelectItem>
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground">per page</span>
@@ -391,9 +419,188 @@ const MenuManagement: React.FC = () => {
         </div>
       </div>
       
+      <div className="flex-grow overflow-hidden flex flex-col">
+        <Tabs 
+          defaultValue="All Items" 
+          value={activeCategory} 
+          onValueChange={setActiveCategory}
+          className="flex-grow flex flex-col"
+        >
+          <TabsList className="mb-4 overflow-auto">
+            {menuCategories.map((category) => (
+              <TabsTrigger key={category} value={category}>
+                {category}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          
+          <div className="flex-grow overflow-auto">
+            {menuCategories.map((category) => (
+              <TabsContent 
+                key={category} 
+                value={category} 
+                className="space-y-4 h-full overflow-auto"
+              >
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-48">
+                    <p>Loading menu items...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center p-8 border rounded-lg">
+                    <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running.</p>
+                  </div>
+                ) : viewMode === 'grid' ? (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {paginatedItems.length > 0 ? (
+                      paginatedItems.map((item) => (
+                        <Card 
+                          key={item._id} 
+                          className="overflow-hidden cursor-pointer"
+                          onClick={() => openItemDetail(item)}
+                        >
+                          <div className="aspect-video w-full overflow-hidden bg-muted">
+                            <img
+                              src={item.imageUrl || "https://placehold.co/200x150"}
+                              alt={item.itemName || "Menu Item"}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = "https://placehold.co/200x150";
+                              }}
+                            />
+                          </div>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="font-semibold">{item.itemName || "Untitled Item"}</h3>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {item.itemCode} {item.StarterType ? `- ${item.StarterType}` : ""}
+                                </p>
+                              </div>
+                              <div className="font-medium">
+                                ₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}
+                              </div>
+                            </div>
+                            {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                              <div className="mt-4 flex gap-2">
+                                {catalogSettings?.itemEdit && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="flex-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditModal(item);
+                                    }}
+                                  >
+                                    <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                                  </Button>
+                                )}
+                                {catalogSettings?.itemDelete && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive" 
+                                    className="flex-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      item._id && handleDeleteItem(item._id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center p-8 border rounded-lg">
+                        <p className="text-muted-foreground">No items found in this category. Try adjusting your search or filter.</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item Name</TableHead>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Price</TableHead>
+                          {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                            <TableHead className="text-right">Actions</TableHead>
+                          )}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedItems.length > 0 ? (
+                          paginatedItems.map((item) => (
+                            <TableRow 
+                              key={item._id}
+                              className="cursor-pointer"
+                              onClick={() => openItemDetail(item)}
+                            >
+                              <TableCell className="font-medium">{item.itemName}</TableCell>
+                              <TableCell>{item.itemCode}</TableCell>
+                              <TableCell>{item.Category}</TableCell>
+                              <TableCell>₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</TableCell>
+                              {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    {catalogSettings?.itemEdit && (
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openEditModal(item);
+                                        }}
+                                      >
+                                        <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                                      </Button>
+                                    )}
+                                    {catalogSettings?.itemDelete && (
+                                      <Button 
+                                        size="sm" 
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          item._id && handleDeleteItem(item._id);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell 
+                              colSpan={(catalogSettings?.itemEdit || catalogSettings?.itemDelete) ? 5 : 4}
+                              className="h-24 text-center"
+                            >
+                              No items found in this category. Try adjusting your search or filter.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+            ))}
+          </div>
+        </Tabs>
+      </div>
+
       {filteredItems.length > itemsPerPage && (
-        <Pagination>
-          <PaginationContent>
+        <Pagination className="mt-4">
+          <PaginationContent className="justify-start">
             <PaginationItem>
               <PaginationPrevious 
                 href="#"
@@ -406,27 +613,6 @@ const MenuManagement: React.FC = () => {
                 className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
               />
             </PaginationItem>
-            
-            {generatePageNumbers().map((page, index) => 
-              page === 'ellipsis' ? (
-                <PaginationItem key={`ellipsis-${index}`}>
-                  <span className="px-4">...</span>
-                </PaginationItem>
-              ) : (
-                <PaginationItem key={`page-${page}`}>
-                  <PaginationLink 
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handlePageChange(page as number);
-                    }}
-                    isActive={currentPage === page}
-                  >
-                    {page}
-                  </PaginationLink>
-                </PaginationItem>
-              )
-            )}
             
             <PaginationItem>
               <PaginationNext 
@@ -442,174 +628,6 @@ const MenuManagement: React.FC = () => {
             </PaginationItem>
           </PaginationContent>
         </Pagination>
-      )}
-      
-      {isLoading ? (
-        <div className="flex justify-center items-center h-48">
-          <p>Loading menu items...</p>
-        </div>
-      ) : error ? (
-        <div className="text-center p-8 border rounded-lg">
-          <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running.</p>
-        </div>
-      ) : (
-        <Tabs defaultValue="All Items" value={activeCategory} onValueChange={setActiveCategory}>
-          <TabsList className="mb-4 overflow-auto">
-            {menuCategories.map((category) => (
-              <TabsTrigger key={category} value={category}>
-                {category}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          
-          {menuCategories.map((category) => (
-            <TabsContent key={category} value={category} className="space-y-4">
-              {viewMode === 'grid' ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {paginatedItems.length > 0 ? (
-                    paginatedItems.map((item) => (
-                      <Card 
-                        key={item._id} 
-                        className="overflow-hidden cursor-pointer"
-                        onClick={() => openItemDetail(item)}
-                      >
-                        <div className="aspect-video w-full overflow-hidden bg-muted">
-                          <img
-                            src={item.imageUrl || "https://placehold.co/200x150"}
-                            alt={item.itemName || "Menu Item"}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = "https://placehold.co/200x150";
-                            }}
-                          />
-                        </div>
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="font-semibold">{item.itemName || "Untitled Item"}</h3>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {item.itemCode} {item.StarterType ? `- ${item.StarterType}` : ""}
-                              </p>
-                            </div>
-                            <div className="font-medium">
-                              ₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}
-                            </div>
-                          </div>
-                          {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
-                            <div className="mt-4 flex gap-2">
-                              {catalogSettings?.itemEdit && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openEditModal(item);
-                                  }}
-                                >
-                                  <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                                </Button>
-                              )}
-                              {catalogSettings?.itemDelete && (
-                                <Button 
-                                  size="sm" 
-                                  variant="destructive" 
-                                  className="flex-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    item._id && handleDeleteItem(item._id);
-                                  }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <div className="col-span-full text-center p-8 border rounded-lg">
-                      <p className="text-muted-foreground">No items found in this category. Try adjusting your search or filter.</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Price</TableHead>
-                        {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
-                          <TableHead className="text-right">Actions</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedItems.length > 0 ? (
-                        paginatedItems.map((item) => (
-                          <TableRow 
-                            key={item._id}
-                            className="cursor-pointer"
-                            onClick={() => openItemDetail(item)}
-                          >
-                            <TableCell className="font-medium">{item.itemName}</TableCell>
-                            <TableCell>{item.itemCode}</TableCell>
-                            <TableCell>{item.Category}</TableCell>
-                            <TableCell>₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</TableCell>
-                            {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  {catalogSettings?.itemEdit && (
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openEditModal(item);
-                                      }}
-                                    >
-                                      <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                                    </Button>
-                                  )}
-                                  {catalogSettings?.itemDelete && (
-                                    <Button 
-                                      size="sm" 
-                                      variant="destructive"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        item._id && handleDeleteItem(item._id);
-                                      }}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell 
-                            colSpan={(catalogSettings?.itemEdit || catalogSettings?.itemDelete) ? 5 : 4}
-                            className="h-24 text-center"
-                          >
-                            No items found in this category. Try adjusting your search or filter.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
       )}
       
       <ItemFormModal
@@ -662,6 +680,21 @@ const MenuManagement: React.FC = () => {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={cancelUpdate}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmUpdate}>Update</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isPendingAddDialogOpen} onOpenChange={setIsPendingAddDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Add Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to add this new menu item?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelAdd}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAdd}>Save</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

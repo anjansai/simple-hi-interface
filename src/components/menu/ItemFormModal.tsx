@@ -35,7 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 // Define validation schema for the form
 const formSchema = z.object({
   itemName: z.string().min(1, "Item name is required"),
-  itemCode: z.string(),
+  itemCode: z.string().min(1, "Item code is required"),
   MRP: z.number().min(0, "Price must be 0 or greater"),
   Category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
@@ -109,7 +109,6 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
     setSelectedCategory(value);
     form.setValue('Category', value);
     
-    // Set a default type based on category (can be modified as needed)
     let typeValue = 0;
     switch(value) {
       case 'Starters': typeValue = 222; break;
@@ -157,9 +156,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
   const handleSubmit = async (data: FormValues) => {
     try {
+      // Ensure we have all required fields with proper types
       const itemData: MenuItem = {
-        ...data,
-        MRP: data.MRP || 0
+        itemName: data.itemName,
+        itemCode: data.itemCode,
+        MRP: data.MRP,
+        Type: data.Type,
+        Category: data.Category,
+        description: data.description || ''
       };
       await onSubmit(itemData);
     } catch (error) {
@@ -260,7 +264,6 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   <FormLabel>Price (₹)*</FormLabel>
                   <FormControl>
                     <Input 
-                      {...field} 
                       type="number" 
                       min="0"
                       step="0.01"
