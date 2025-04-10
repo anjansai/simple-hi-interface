@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { MenuItem, generateItemCode, getCategoryType } from '@/services/menuService';
+import { MenuItem, generateItemCode, getTypeCategory } from '@/services/menuService';
 import { useToast } from '@/hooks/use-toast';
 
 interface ItemFormModalProps {
@@ -51,14 +51,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 }) => {
   const { toast } = useToast();
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>(item?.Variant || '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(item?.Category || '');
   
   const form = useForm<MenuItem>({
     defaultValues: {
       itemName: item?.itemName || '',
       itemCode: item?.itemCode || '',
       MRP: item?.MRP || 0,
-      Variant: item?.Variant || '',
+      Category: item?.Category || '',
       description: item?.description || '',
       Type: item?.Type || 0,
     },
@@ -71,17 +71,17 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
         itemName: item.itemName || '',
         itemCode: item.itemCode || '',
         MRP: item.MRP || 0,
-        Variant: item.Variant || '',
+        Category: item.Category || '',
         description: item.description || '',
         Type: item.Type || 0,
       });
-      setSelectedCategory(item.Variant || '');
+      setSelectedCategory(item.Category || '');
     } else if (open && !item) {
       form.reset({
         itemName: '',
         itemCode: '',
         MRP: 0,
-        Variant: '',
+        Category: '',
         description: '',
         Type: 0,
       });
@@ -91,7 +91,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
   const handleCategoryChange = async (value: string) => {
     setSelectedCategory(value);
-    form.setValue('Variant', value);
+    form.setValue('Category', value);
     form.setValue('Type', getCategoryType(value));
     
     if (!isEdit) {
@@ -163,7 +163,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="Variant"
+                name="Category"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Category*</FormLabel>
@@ -183,7 +183,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                         <SelectItem value="Desserts">Desserts</SelectItem>
                         <SelectItem value="Beverages">Beverages</SelectItem>
                         <SelectItem value="Specials">Specials</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        <SelectItem value="Others">Others</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

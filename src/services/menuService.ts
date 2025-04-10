@@ -1,5 +1,3 @@
-
-// MenuItem interface defines the structure of a menu item from the database
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -9,11 +7,11 @@ export interface MenuItem {
   Variant: string;
   StarterType?: string;
   available?: boolean;
-  description?: string;
   // For compatibility with existing code, we'll map these fields
   name?: string;
   category?: string;
   price?: number;
+  description?: string;
   imageUrl?: string;
 }
 
@@ -24,15 +22,16 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 export function getTypeCategory(type: number): string {
   switch (type) {
     case 222: return 'Starters';
-    case 223: return 'Main Courses';
-    case 224: return 'Desserts';
+    case 223: return 'Main course';
+    case 224: return 'Desserts'; 
     case 225: return 'Beverages';
     case 226: return 'Specials';
+    case 227: return 'Other';
     default: return 'Other';
   }
 }
 
-// Helper to map category names to type codes
+// Helper to map categories to type codes
 export function getCategoryType(category: string): number {
   switch (category) {
     case 'Starters': return 222;
@@ -40,11 +39,12 @@ export function getCategoryType(category: string): number {
     case 'Desserts': return 224;
     case 'Beverages': return 225;
     case 'Specials': return 226;
-    default: return 0;
+    case 'Other': return 227;
+    default: return 227;
   }
 }
 
-// Get category prefix for item codes
+// Get category prefix for item code
 export function getCategoryPrefix(category: string): string {
   switch (category) {
     case 'Starters': return 'SC';
@@ -52,7 +52,46 @@ export function getCategoryPrefix(category: string): string {
     case 'Desserts': return 'D';
     case 'Beverages': return 'B';
     case 'Specials': return 'S';
+    case 'Other': return 'OT';
     default: return 'OT';
+  }
+}
+
+// Generate a unique item code based on category
+export async function generateItemCode(category: string): Promise<string> {
+  try {
+    const prefix = getCategoryPrefix(category);
+    const response = await fetch(`${API_BASE}/settings/generate-code?prefix=${prefix}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.code;
+  } catch (error) {
+    console.error("Failed to generate item code:", error);
+    throw error;
+  }
+}
+
+// Check if an item name already exists
+export async function checkItemNameExists(name: string, excludeId?: string): Promise<boolean> {
+  try {
+    const url = new URL(`${API_BASE}/menu/check-name`);
+    url.searchParams.append('name', name);
+    if (excludeId) url.searchParams.append('excludeId', excludeId);
+    
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.exists;
+  } catch (error) {
+    console.error("Failed to check if item name exists:", error);
+    throw error;
   }
 }
 
@@ -79,11 +118,11 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
       MRP: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
       Type: item.Type,
       Variant: item.Variant || '',
-      description: item.description || '',
       // Map to compatibility fields for existing code
       name: item.itemName || '',
       category: item.Variant || getTypeCategory(item.Type),
       price: typeof item.MRP === 'number' ? item.MRP : parseFloat(item.MRP) || 0,
+      description: item.description || `${item.itemCode || ''} - ${item.StarterType || ''}`
     })) : [];
     
     return validatedData;
@@ -105,49 +144,6 @@ export async function getMenuItemsByCategory(category: string): Promise<MenuItem
   } catch (error) {
     console.error(`Failed to fetch menu items for category ${category}:`, error);
     return []; // Return empty array instead of throwing
-  }
-}
-
-// Check if item name exists
-export async function checkItemNameExists(name: string, excludeId?: string): Promise<boolean> {
-  try {
-    const items = await getAllMenuItems();
-    return items.some(item => 
-      item.itemName.toLowerCase() === name.toLowerCase() && 
-      (!excludeId || item._id !== excludeId)
-    );
-  } catch (error) {
-    console.error("Failed to check item name:", error);
-    throw error;
-  }
-}
-
-// Generate a unique item code for a category
-export async function generateItemCode(category: string): Promise<string> {
-  try {
-    const prefix = getCategoryPrefix(category);
-    const response = await fetch(`${API_BASE}/menu/generate-code/${prefix}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.code;
-  } catch (error) {
-    console.error("Failed to generate item code:", error);
-    throw error;
-  }
-}
-
-// Check if item code exists
-export async function checkItemCodeExists(code: string): Promise<boolean> {
-  try {
-    const items = await getAllMenuItems();
-    return items.some(item => item.itemCode === code);
-  } catch (error) {
-    console.error("Failed to check item code:", error);
-    throw error;
   }
 }
 

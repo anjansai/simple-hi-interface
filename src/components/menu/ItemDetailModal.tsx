@@ -58,7 +58,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             
             <div className="text-sm">
               <p className="font-medium text-muted-foreground">Category</p>
-              <p>{item.Variant}</p>
+              <p>{item.Category}</p>
             </div>
             
             <div className="text-sm">
