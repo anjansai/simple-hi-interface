@@ -16,9 +16,28 @@ async function getAllMenuItems() {
 async function getMenuItemsByCategory(category) {
   try {
     await connectToDatabase();
-    return await collections.menu.find({ category }).toArray();
+    return await collections.menu.find({ Variant: category }).toArray();
   } catch (error) {
     console.error(`Failed to fetch menu items for category ${category}:`, error);
+    throw error;
+  }
+}
+
+// Check if item name exists
+async function checkItemNameExists(name, excludeId = null) {
+  try {
+    await connectToDatabase();
+    const query = { itemName: { $regex: new RegExp(`^${name}$`, 'i') } };
+    
+    // If excluding an item by ID, add it to the query
+    if (excludeId) {
+      query._id = { $ne: toObjectId(excludeId) };
+    }
+    
+    const count = await collections.menu.countDocuments(query);
+    return count > 0;
+  } catch (error) {
+    console.error(`Failed to check if item name exists: ${name}`, error);
     throw error;
   }
 }
@@ -65,6 +84,7 @@ async function deleteMenuItem(id) {
 module.exports = {
   getAllMenuItems,
   getMenuItemsByCategory,
+  checkItemNameExists,
   addMenuItem,
   updateMenuItem,
   deleteMenuItem

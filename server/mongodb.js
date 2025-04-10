@@ -30,6 +30,7 @@ async function connectToDatabase() {
       collections.orders = db.collection('orders');
       collections.tables = db.collection('tables');
       collections.staff = db.collection('staff');
+      collections.settings = db.collection('restaurantDB_settings');
       
       console.log('Collections initialized:', Object.keys(collections).join(', '));
     }
