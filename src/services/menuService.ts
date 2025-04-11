@@ -1,3 +1,4 @@
+
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -263,7 +264,12 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Pr
       throw new Error(errorMessage);
     }
     
-    return { success: true };
+    // Parse the JSON response
+    const result = await response.json();
+    return { 
+      success: true,
+      ...result
+    };
   } catch (error) {
     console.error(`Failed to update menu item with id ${id}:`, error);
     throw error;
@@ -288,16 +294,21 @@ export async function deleteMenuItem(id: string): Promise<{ success: boolean }> 
 
 // Upload an image and get URL
 export async function uploadImage(file: File): Promise<string> {
-  try {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setTimeout(() => {
-        resolve(reader.result as string);
-      }, 500);
-    };
-    reader.readAsDataURL(file);
-  } catch (error) {
-    console.error("Failed to upload image:", error);
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTimeout(() => {
+          resolve(reader.result as string);
+        }, 500);
+      };
+      reader.onerror = () => {
+        reject(new Error("Failed to read file"));
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      reject(error);
+    }
+  });
 }

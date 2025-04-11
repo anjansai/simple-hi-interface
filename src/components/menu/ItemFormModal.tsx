@@ -231,12 +231,12 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[calc(80vh-120px)] pr-4">
+        <ScrollArea className="flex-grow overflow-auto pr-4 max-h-[60vh] min-h-[200px]">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               <FormField
@@ -409,7 +409,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
           </Form>
         </ScrollArea>
         
-        <DialogFooter className="sticky bottom-0 pt-2 bg-background">
+        <DialogFooter className="mt-4 pt-2 border-t flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

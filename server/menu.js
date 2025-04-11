@@ -101,7 +101,12 @@ async function updateMenuItem(id, updates) {
       throw new Error("Item not found");
     }
     
-    return { success: true, matchedCount: result.matchedCount, modifiedCount: result.modifiedCount };
+    return { 
+      success: true, 
+      matchedCount: result.matchedCount, 
+      modifiedCount: result.modifiedCount,
+      message: "Menu item updated successfully" 
+    };
   } catch (error) {
     console.error(`Failed to update menu item with id ${id}:`, error);
     throw error;
