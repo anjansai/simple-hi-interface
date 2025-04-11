@@ -1,3 +1,4 @@
+
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -49,10 +50,11 @@ export async function generateItemCode(): Promise<string> {
 }
 
 // Check if an item code already exists
-export async function checkItemCodeExists(code: string): Promise<boolean> {
+export async function checkItemCodeExists(code: string, excludeId?: string): Promise<boolean> {
   try {
     const url = new URL(`${API_BASE}/menu/check-code`);
     url.searchParams.append('code', code);
+    if (excludeId) url.searchParams.append('excludeId', excludeId);
     
     const response = await fetch(url.toString());
     if (!response.ok) {
@@ -98,7 +100,8 @@ export function exportToCSV(items: MenuItem[]): void {
     'Type',
     'Description',
     'Starter Type',
-    'Available'
+    'Available',
+    'Image URL'
   ];
   
   // Convert items to CSV rows
@@ -110,7 +113,8 @@ export function exportToCSV(items: MenuItem[]): void {
     item.Type ? item.Type.toString() : '0',
     item.description || '',
     item.StarterType || '',
-    item.available !== undefined ? item.available.toString() : 'true'
+    item.available !== undefined ? item.available.toString() : 'true',
+    item.imageUrl || ''
   ]);
   
   // Create CSV content
@@ -162,6 +166,7 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
       Type: item.Type,
       Category: item.Category || '',
       description: item.description || '',
+      imageUrl: item.imageUrl || '',
       // Map to compatibility fields for existing code
       name: item.itemName || '',
       category: item.Category || getTypeCategory(item.Type),
@@ -178,7 +183,7 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
 // Get menu items by category
 export async function getMenuItemsByCategory(category: string): Promise<MenuItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/menu/category/${category}`);
+    const response = await fetch(`${API_BASE}/menu/category/${encodeURIComponent(category)}`);
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
@@ -244,6 +249,28 @@ export async function deleteMenuItem(id: string): Promise<{ success: boolean }> 
     return await response.json();
   } catch (error) {
     console.error(`Failed to delete menu item with id ${id}:`, error);
+    throw error;
+  }
+}
+
+// Upload an image and get URL (simulated for now)
+export async function uploadImage(file: File): Promise<string> {
+  try {
+    // This is a simulated image upload function
+    // In a real implementation, this would upload to a server or cloud storage
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Simulate a slight delay
+        setTimeout(() => {
+          // Return the image as a base64 string
+          resolve(reader.result as string);
+        }, 500);
+      };
+      reader.readAsDataURL(file);
+    });
+  } catch (error) {
+    console.error("Failed to upload image:", error);
     throw error;
   }
 }

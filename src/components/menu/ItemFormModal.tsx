@@ -28,18 +28,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, RefreshCw } from 'lucide-react';
-import { MenuItem, generateItemCode } from '@/services/menuService';
+import { Loader2, RefreshCw, Upload, XCircle } from 'lucide-react';
+import { MenuItem, generateItemCode, uploadImage } from '@/services/menuService';
 import { useToast } from '@/hooks/use-toast';
 
 // Define validation schema for the form
 const formSchema = z.object({
   itemName: z.string().min(1, "Item name is required"),
   itemCode: z.string().min(1, "Item code is required"),
-  MRP: z.number().min(0, "Price must be 0 or greater"),
+  MRP: z.number().positive("Price must be greater than 0").or(z.nan()),
   Category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   Type: z.number(),
+  imageUrl: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -66,6 +67,8 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const { toast } = useToast();
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>(item?.Category || '');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(item?.imageUrl || null);
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -76,6 +79,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       Category: item?.Category || '',
       description: item?.description || '',
       Type: item?.Type || 0,
+      imageUrl: item?.imageUrl || '',
     },
     mode: "onChange"
   });
@@ -86,12 +90,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       form.reset({
         itemName: item.itemName || '',
         itemCode: item.itemCode || '',
-        MRP: item.MRP || undefined,
+        MRP: item.MRP !== undefined ? item.MRP : undefined,
         Category: item.Category || '',
         description: item.description || '',
         Type: item.Type || 0,
+        imageUrl: item.imageUrl || '',
       });
       setSelectedCategory(item.Category || '');
+      setImagePreview(item.imageUrl || null);
     } else if (open && !item) {
       form.reset({
         itemName: '',
@@ -100,14 +106,17 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
         Category: '',
         description: '',
         Type: 0,
+        imageUrl: '',
       });
       setSelectedCategory('');
+      setImagePreview(null);
     }
   }, [open, item, form]);
 
   const handleCategoryChange = async (value: string) => {
     setSelectedCategory(value);
     form.setValue('Category', value);
+    form.trigger('Category');
     
     let typeValue = 0;
     switch(value) {
@@ -126,6 +135,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
         setIsGeneratingCode(true);
         const code = await generateItemCode();
         form.setValue('itemCode', code);
+        form.trigger('itemCode');
       } catch (error) {
         toast({
           title: "Error generating code",
@@ -143,6 +153,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setIsGeneratingCode(true);
       const code = await generateItemCode();
       form.setValue('itemCode', code);
+      form.trigger('itemCode');
     } catch (error) {
       toast({
         title: "Error regenerating code",
@@ -153,6 +164,51 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setIsGeneratingCode(false);
     }
   };
+  
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    
+    // Check file size (limit to 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Image size should be less than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setUploadingImage(true);
+      const imageUrl = await uploadImage(file);
+      
+      form.setValue('imageUrl', imageUrl);
+      form.trigger('imageUrl');
+      setImagePreview(imageUrl);
+      
+      toast({
+        title: "Image uploaded",
+        description: "Image has been successfully uploaded",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+  
+  const removeImage = () => {
+    form.setValue('imageUrl', '');
+    form.trigger('imageUrl');
+    setImagePreview(null);
+  };
 
   const handleSubmit = async (data: FormValues) => {
     try {
@@ -160,10 +216,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       const itemData: MenuItem = {
         itemName: data.itemName,
         itemCode: data.itemCode,
-        MRP: data.MRP,
+        MRP: isNaN(data.MRP) ? 0 : data.MRP,
         Type: data.Type,
         Category: data.Category,
-        description: data.description || ''
+        description: data.description || '',
+        imageUrl: data.imageUrl || ''
       };
       await onSubmit(itemData);
     } catch (error) {
@@ -264,12 +321,12 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   <FormLabel>Price (₹)*</FormLabel>
                   <FormControl>
                     <Input 
-                      type="number" 
-                      min="0"
+                      type="number"
+                      min="0.01"
                       step="0.01"
-                      value={field.value === undefined ? '' : field.value}
+                      value={isNaN(field.value) ? '' : field.value}
                       onChange={(e) => {
-                        const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                        const value = e.target.value === '' ? NaN : parseFloat(e.target.value);
                         field.onChange(value);
                       }}
                       placeholder="Enter price"
@@ -293,13 +350,69 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="imageUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Item Image</FormLabel>
+                  <div className="space-y-2">
+                    {imagePreview ? (
+                      <div className="relative aspect-video w-full overflow-hidden bg-muted rounded-md">
+                        <img
+                          src={imagePreview}
+                          alt="Item preview"
+                          className="h-full w-full object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1"
+                          onClick={removeImage}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-6">
+                        <label className="flex flex-col items-center justify-center cursor-pointer">
+                          <Upload className="w-8 h-8 text-gray-400" />
+                          <span className="mt-2 text-sm text-gray-500">
+                            {uploadingImage ? 'Uploading...' : 'Upload image'}
+                          </span>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            disabled={uploadingImage}
+                          />
+                        </label>
+                      </div>
+                    )}
+                    <FormControl>
+                      <input
+                        type="hidden"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </div>
+                </FormItem>
+              )}
+            />
             
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading || !form.formState.isValid}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button 
+                type="submit" 
+                disabled={isLoading || !form.formState.isValid || uploadingImage}
+              >
+                {(isLoading || uploadingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEdit ? 'Update' : 'Save'}
               </Button>
             </DialogFooter>

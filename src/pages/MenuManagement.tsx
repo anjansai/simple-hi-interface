@@ -20,6 +20,7 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -103,7 +104,8 @@ const MenuManagement: React.FC = () => {
   const { 
     data: menuItems = [], 
     isLoading, 
-    error 
+    error,
+    refetch: refetchMenuItems
   } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
@@ -230,6 +232,10 @@ const MenuManagement: React.FC = () => {
         // Generate a new code
         const newCode = await generateItemCode();
         pendingAddData.itemCode = newCode;
+        toast({
+          title: "Notice",
+          description: "Generated new item code to avoid duplication",
+        });
       }
       
       addMutation.mutate(pendingAddData);
@@ -322,7 +328,7 @@ const MenuManagement: React.FC = () => {
       if (!item) return false;
       
       const categoryMatch = activeCategory === 'All Items' || 
-                           item.Category === activeCategory;
+                           (item.Category === activeCategory);
       
       const itemName = item.itemName || '';
       const itemCode = item.itemCode || '';
@@ -345,10 +351,6 @@ const MenuManagement: React.FC = () => {
     setCurrentPage(page);
   };
 
-  if (error) {
-    console.error("Error in MenuManagement component:", error);
-  }
-
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -357,7 +359,11 @@ const MenuManagement: React.FC = () => {
           <p className="text-muted-foreground">Add, edit and manage your menu items</p>
         </div>
         <div className="flex gap-2">
-          <Button className="w-full sm:w-auto" onClick={handleExportCsv}>
+          <Button 
+            className="w-full sm:w-auto" 
+            variant="outline"
+            onClick={handleExportCsv}
+          >
             <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
           <Button className="w-full sm:w-auto" onClick={() => setIsAddModalOpen(true)}>
@@ -419,6 +425,45 @@ const MenuManagement: React.FC = () => {
         </div>
       </div>
       
+      {/* Pagination at Top */}
+      {filteredItems.length > itemsPerPage && (
+        <Pagination>
+          <PaginationContent className="justify-start">
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (currentPage > 1) {
+                    handlePageChange(currentPage - 1);
+                  }
+                }}
+                className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+            
+            <PaginationItem className="flex items-center mx-2">
+              <span className="text-sm">
+                Page {currentPage} of {totalPages}
+              </span>
+            </PaginationItem>
+            
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (currentPage < totalPages) {
+                    handlePageChange(currentPage + 1);
+                  }
+                }}
+                className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+      
       <div className="flex-grow overflow-hidden flex flex-col">
         <Tabs 
           defaultValue="All Items" 
@@ -448,6 +493,13 @@ const MenuManagement: React.FC = () => {
                 ) : error ? (
                   <div className="text-center p-8 border rounded-lg">
                     <p className="text-muted-foreground">There was an error loading the menu items. Please make sure your server is running.</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={() => refetchMenuItems()}
+                    >
+                      Retry
+                    </Button>
                   </div>
                 ) : viewMode === 'grid' ? (
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -459,15 +511,21 @@ const MenuManagement: React.FC = () => {
                           onClick={() => openItemDetail(item)}
                         >
                           <div className="aspect-video w-full overflow-hidden bg-muted">
-                            <img
-                              src={item.imageUrl || "https://placehold.co/200x150"}
-                              alt={item.itemName || "Menu Item"}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = "https://placehold.co/200x150";
-                              }}
-                            />
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.itemName || "Menu Item"}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = "https://placehold.co/200x150";
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center">
+                                <ImageIcon className="h-8 w-8 text-gray-300" />
+                              </div>
+                            )}
                           </div>
                           <CardContent className="p-4">
                             <div className="flex justify-between items-start">
@@ -598,37 +656,7 @@ const MenuManagement: React.FC = () => {
         </Tabs>
       </div>
 
-      {filteredItems.length > itemsPerPage && (
-        <Pagination className="mt-4">
-          <PaginationContent className="justify-start">
-            <PaginationItem>
-              <PaginationPrevious 
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (currentPage > 1) {
-                    handlePageChange(currentPage - 1);
-                  }
-                }}
-                className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-              />
-            </PaginationItem>
-            
-            <PaginationItem>
-              <PaginationNext 
-                href="#" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (currentPage < totalPages) {
-                    handlePageChange(currentPage + 1);
-                  }
-                }}
-                className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+      {/* No pagination at bottom anymore, it's been moved to the top */}
       
       <ItemFormModal
         open={isAddModalOpen}

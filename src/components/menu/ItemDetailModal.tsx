@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/services/menuService';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Image as ImageIcon } from 'lucide-react';
 
 interface ItemDetailModalProps {
   open: boolean;
@@ -34,15 +35,22 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         <ScrollArea className="max-h-[60vh]">
           <div className="space-y-4">
             <div className="aspect-video w-full overflow-hidden bg-muted rounded-md">
-              <img
-                src={item.imageUrl || "https://placehold.co/600x400"}
-                alt={item.itemName || "Menu Item"}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = "https://placehold.co/600x400";
-                }}
-              />
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.itemName || "Menu Item"}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = "https://placehold.co/600x400";
+                  }}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center">
+                  <ImageIcon className="h-12 w-12 text-gray-300" />
+                  <span className="ml-2 text-gray-400">No image available</span>
+                </div>
+              )}
             </div>
             
             <div className="grid gap-2">

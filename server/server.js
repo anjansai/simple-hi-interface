@@ -55,6 +55,18 @@ app.get('/api/menu/check-name', async (req, res) => {
   }
 });
 
+// Add the missing endpoint for checking item code
+app.get('/api/menu/check-code', async (req, res) => {
+  try {
+    const { code, excludeId } = req.query;
+    const codeExists = await menuRoutes.checkItemCodeExists(code, excludeId);
+    res.json({ exists: codeExists });
+  } catch (error) {
+    console.error('Error checking item code:', error);
+    res.status(500).json({ error: 'Failed to check item code' });
+  }
+});
+
 app.post('/api/menu', async (req, res) => {
   try {
     // Check if item name already exists
@@ -88,7 +100,7 @@ app.put('/api/menu/:id', async (req, res) => {
     }
     
     const result = await menuRoutes.updateMenuItem(req.params.id, req.body);
-    if (result.modifiedCount === 0) {
+    if (result.modifiedCount === 0 && result.matchedCount === 0) {
       return res.status(404).json({ error: 'Menu item not found' });
     }
     res.json({ success: true, message: 'Menu item updated' });

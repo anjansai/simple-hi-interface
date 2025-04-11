@@ -42,6 +42,25 @@ async function checkItemNameExists(name, excludeId = null) {
   }
 }
 
+// Check if item code exists
+async function checkItemCodeExists(code, excludeId = null) {
+  try {
+    await connectToDatabase();
+    const query = { itemCode: code };
+    
+    // If excluding an item by ID, add it to the query
+    if (excludeId) {
+      query._id = { $ne: toObjectId(excludeId) };
+    }
+    
+    const count = await collections.menu.countDocuments(query);
+    return count > 0;
+  } catch (error) {
+    console.error(`Failed to check if item code exists: ${code}`, error);
+    throw error;
+  }
+}
+
 // Add a new menu item
 async function addMenuItem(item) {
   try {
@@ -85,6 +104,7 @@ module.exports = {
   getAllMenuItems,
   getMenuItemsByCategory,
   checkItemNameExists,
+  checkItemCodeExists,
   addMenuItem,
   updateMenuItem,
   deleteMenuItem
