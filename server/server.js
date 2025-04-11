@@ -1,9 +1,12 @@
 
 const express = require('express');
 const cors = require('cors');
-const { connectToDatabase, closeConnection } = require('./mongodb');
+const crypto = require('crypto');
+const { connectToDatabase, closeConnection, ObjectId } = require('./mongodb');
 const menuRoutes = require('./menu');
 const settingsRoutes = require('./settings');
+const userRoutes = require('./users');
+const instanceRoutes = require('./instances');
 
 // Create Express app
 const app = express();
@@ -171,6 +174,160 @@ app.put('/api/settings/:type', async (req, res) => {
   } catch (error) {
     console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// Instance Creation Route
+app.post('/api/instances/create', async (req, res) => {
+  try {
+    const instanceData = req.body;
+    const newInstance = await instanceRoutes.createNewInstance(instanceData);
+    res.status(201).json(newInstance);
+  } catch (error) {
+    console.error('Error creating new instance:', error);
+    res.status(500).json({ error: error.message || 'Failed to create new instance' });
+  }
+});
+
+// Auth Routes
+app.post('/api/auth/check-login', async (req, res) => {
+  try {
+    const { phone, companyId } = req.body;
+    const user = await userRoutes.checkInitialLogin(phone, companyId);
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Error checking login:', error);
+    res.status(401).json({ error: error.message || 'Invalid credentials' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const loginData = req.body;
+    const result = await userRoutes.completeLogin(loginData);
+    
+    // Generate a simple token for session management
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    res.json({ 
+      success: true, 
+      token,
+      user: {
+        userName: result.userName,
+        userEmail: result.userEmail,
+        userRole: result.userRole,
+        apiKey: result.apiKey,
+        companyId: result.companyId
+      }
+    });
+  } catch (error) {
+    console.error('Error completing login:', error);
+    res.status(401).json({ error: error.message || 'Login failed' });
+  }
+});
+
+// User Management Routes
+app.get('/api/users', async (req, res) => {
+  try {
+    const { role } = req.query;
+    const users = await userRoutes.getUsers(role);
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/users/:id', async (req, res) => {
+  try {
+    const user = await userRoutes.getUserById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user details' });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  try {
+    const userData = req.body;
+    const newUser = await userRoutes.createUser(userData);
+    res.status(201).json(newUser);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: error.message || 'Failed to create user' });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const result = await userRoutes.updateUser(req.params.id, req.body);
+    if (!result) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ success: true, message: 'User updated successfully' });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: error.message || 'Failed to update user' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const result = await userRoutes.deactivateUser(req.params.id);
+    if (!result) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ success: true, message: 'User deactivated successfully' });
+  } catch (error) {
+    console.error('Error deactivating user:', error);
+    res.status(500).json({ error: error.message || 'Failed to deactivate user' });
+  }
+});
+
+// User Role Settings
+app.get('/api/settings/userRoles', async (req, res) => {
+  try {
+    const roles = await userRoutes.getUserRoles();
+    res.json({ roles });
+  } catch (error) {
+    console.error('Error fetching user roles:', error);
+    res.status(500).json({ error: 'Failed to fetch user roles' });
+  }
+});
+
+app.post('/api/settings/userRoles', async (req, res) => {
+  try {
+    const { role } = req.body;
+    const result = await userRoutes.addUserRole(role);
+    res.json({ success: true, roles: result.roles });
+  } catch (error) {
+    console.error('Error adding user role:', error);
+    res.status(500).json({ error: error.message || 'Failed to add user role' });
+  }
+});
+
+// Staff Settings
+app.get('/api/settings/userEdit', async (req, res) => {
+  try {
+    const settings = await userRoutes.getStaffSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching staff settings:', error);
+    res.status(500).json({ error: 'Failed to fetch staff settings' });
+  }
+});
+
+app.put('/api/settings/userEdit', async (req, res) => {
+  try {
+    const settings = await userRoutes.updateStaffSettings(req.body);
+    res.json(settings);
+  } catch (error) {
+    console.error('Error updating staff settings:', error);
+    res.status(500).json({ error: 'Failed to update staff settings' });
   }
 });
 

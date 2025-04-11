@@ -25,12 +25,17 @@ async function connectToDatabase() {
       console.log('Connected to MongoDB at:', uri);
       db = client.db();
       
-      // Initialize collections - make sure to use restaurantDB_items
+      // Initialize collections
       collections.menu = db.collection('restaurantDB_items');
       collections.orders = db.collection('orders');
       collections.tables = db.collection('tables');
       collections.staff = db.collection('staff');
       collections.settings = db.collection('restaurantDB_settings');
+      collections.tenants = db.collection('tenants');
+      collections.masterUsers = db.collection('masterUsers');
+      
+      // Initialize dynamic collections based on API keys
+      // This would be done when a login happens in a real app
       
       console.log('Collections initialized:', Object.keys(collections).join(', '));
     }
@@ -62,5 +67,6 @@ module.exports = {
   closeConnection,
   collections,
   toObjectId,
-  ObjectId
+  ObjectId,
+  db: () => db // Expose db for instance creation
 };
