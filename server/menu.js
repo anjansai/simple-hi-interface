@@ -77,11 +77,31 @@ async function addMenuItem(item) {
 async function updateMenuItem(id, updates) {
   try {
     await connectToDatabase();
+    
+    // Convert id to ObjectId
+    const objectId = toObjectId(id);
+    if (!objectId) {
+      throw new Error("Invalid ID format");
+    }
+    
+    // Check if the item exists
+    const existingItem = await collections.menu.findOne({ _id: objectId });
+    if (!existingItem) {
+      throw new Error("Item not found");
+    }
+    
+    console.log("Updating menu item with id:", id, "Updates:", JSON.stringify(updates));
+    
     const result = await collections.menu.updateOne(
-      { _id: toObjectId(id) },
+      { _id: objectId },
       { $set: updates }
     );
-    return result;
+    
+    if (result.matchedCount === 0) {
+      throw new Error("Item not found");
+    }
+    
+    return { success: true, matchedCount: result.matchedCount, modifiedCount: result.modifiedCount };
   } catch (error) {
     console.error(`Failed to update menu item with id ${id}:`, error);
     throw error;

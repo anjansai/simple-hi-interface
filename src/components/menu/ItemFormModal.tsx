@@ -31,6 +31,7 @@ import {
 import { Loader2, RefreshCw, Upload, XCircle } from 'lucide-react';
 import { MenuItem, generateItemCode, uploadImage } from '@/services/menuService';
 import { useToast } from '@/hooks/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Define validation schema for the form
 const formSchema = z.object({
@@ -230,52 +231,109 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="itemName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Item Name*</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Enter item name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <div className="grid grid-cols-2 gap-4">
+        <ScrollArea className="max-h-[calc(80vh-120px)] pr-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="Category"
+                name="itemName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category*</FormLabel>
-                    <Select
-                      onValueChange={handleCategoryChange}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Starters">Starters</SelectItem>
-                        <SelectItem value="Main course">Main Course</SelectItem>
-                        <SelectItem value="Desserts">Desserts</SelectItem>
-                        <SelectItem value="Beverages">Beverages</SelectItem>
-                        <SelectItem value="Specials">Specials</SelectItem>
-                        <SelectItem value="Others">Others</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Item Name*</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter item name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="Category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category*</FormLabel>
+                      <Select
+                        onValueChange={handleCategoryChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Starters">Starters</SelectItem>
+                          <SelectItem value="Main course">Main Course</SelectItem>
+                          <SelectItem value="Desserts">Desserts</SelectItem>
+                          <SelectItem value="Beverages">Beverages</SelectItem>
+                          <SelectItem value="Specials">Specials</SelectItem>
+                          <SelectItem value="Others">Others</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="itemCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Item Code</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input {...field} disabled placeholder="Auto-generated" />
+                        </FormControl>
+                        {!isEdit && (
+                          <Button 
+                            type="button" 
+                            size="icon" 
+                            variant="outline"
+                            onClick={handleRegenerateCode}
+                            disabled={isGeneratingCode}
+                          >
+                            {isGeneratingCode ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <FormField
+                control={form.control}
+                name="MRP"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price (₹)*</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={isNaN(field.value) ? '' : field.value}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? NaN : parseFloat(e.target.value);
+                          field.onChange(value);
+                        }}
+                        placeholder="Enter price"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -283,141 +341,87 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
               
               <FormField
                 control={form.control}
-                name="itemCode"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Item Code</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input {...field} disabled placeholder="Auto-generated" />
-                      </FormControl>
-                      {!isEdit && (
-                        <Button 
-                          type="button" 
-                          size="icon" 
-                          variant="outline"
-                          onClick={handleRegenerateCode}
-                          disabled={isGeneratingCode}
-                        >
-                          {isGeneratingCode ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Enter item description" />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="MRP"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Price (₹)*</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={isNaN(field.value) ? '' : field.value}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? NaN : parseFloat(e.target.value);
-                        field.onChange(value);
-                      }}
-                      placeholder="Enter price"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} placeholder="Enter item description" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
-            <FormField
-              control={form.control}
-              name="imageUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Item Image</FormLabel>
-                  <div className="space-y-2">
-                    {imagePreview ? (
-                      <div className="relative aspect-video w-full overflow-hidden bg-muted rounded-md">
-                        <img
-                          src={imagePreview}
-                          alt="Item preview"
-                          className="h-full w-full object-cover"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-1 right-1"
-                          onClick={removeImage}
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-6">
-                        <label className="flex flex-col items-center justify-center cursor-pointer">
-                          <Upload className="w-8 h-8 text-gray-400" />
-                          <span className="mt-2 text-sm text-gray-500">
-                            {uploadingImage ? 'Uploading...' : 'Upload image'}
-                          </span>
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            disabled={uploadingImage}
+              <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Item Image</FormLabel>
+                    <div className="space-y-2">
+                      {imagePreview ? (
+                        <div className="relative aspect-video w-full overflow-hidden bg-muted rounded-md">
+                          <img
+                            src={imagePreview}
+                            alt="Item preview"
+                            className="h-full w-full object-cover"
                           />
-                        </label>
-                      </div>
-                    )}
-                    <FormControl>
-                      <input
-                        type="hidden"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </div>
-                </FormItem>
-              )}
-            />
-            
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={isLoading || !form.formState.isValid || uploadingImage}
-              >
-                {(isLoading || uploadingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEdit ? 'Update' : 'Save'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1"
+                            onClick={removeImage}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-6">
+                          <label className="flex flex-col items-center justify-center cursor-pointer">
+                            <Upload className="w-8 h-8 text-gray-400" />
+                            <span className="mt-2 text-sm text-gray-500">
+                              {uploadingImage ? 'Uploading...' : 'Upload image'}
+                            </span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              disabled={uploadingImage}
+                            />
+                          </label>
+                        </div>
+                      )}
+                      <FormControl>
+                        <input
+                          type="hidden"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
+        </ScrollArea>
+        
+        <DialogFooter className="sticky bottom-0 pt-2 bg-background">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button 
+            type="button" 
+            disabled={isLoading || !form.formState.isValid || uploadingImage}
+            onClick={form.handleSubmit(handleSubmit)}
+          >
+            {(isLoading || uploadingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isEdit ? 'Update' : 'Save'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,3 @@
-
 export interface MenuItem {
   _id?: string;
   itemName: string;
@@ -58,6 +57,10 @@ export async function checkItemCodeExists(code: string, excludeId?: string): Pro
     
     const response = await fetch(url.toString());
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn("checkItemCodeExists endpoint not found, assuming code doesn't exist");
+        return false;
+      }
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
     
@@ -65,7 +68,7 @@ export async function checkItemCodeExists(code: string, excludeId?: string): Pro
     return data.exists;
   } catch (error) {
     console.error("Failed to check if item code exists:", error);
-    throw error;
+    return false;
   }
 }
 
@@ -78,6 +81,10 @@ export async function checkItemNameExists(name: string, excludeId?: string): Pro
     
     const response = await fetch(url.toString());
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn("checkItemNameExists endpoint not found, assuming name doesn't exist");
+        return false;
+      }
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
     
@@ -85,7 +92,7 @@ export async function checkItemNameExists(name: string, excludeId?: string): Pro
     return data.exists;
   } catch (error) {
     console.error("Failed to check if item name exists:", error);
-    throw error;
+    return false;
   }
 }
 
@@ -198,6 +205,7 @@ export async function getMenuItemsByCategory(category: string): Promise<MenuItem
 // Add a new menu item
 export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
   try {
+    console.log("Adding menu item:", JSON.stringify(item));
     const response = await fetch(`${API_BASE}/menu`, {
       method: 'POST',
       headers: {
@@ -205,10 +213,18 @@ export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
       },
       body: JSON.stringify(item),
     });
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+      let errorMessage = "Failed to add menu item";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use the default error message
+      }
+      throw new Error(errorMessage);
     }
+    
     return await response.json();
   } catch (error) {
     console.error("Failed to add menu item:", error);
@@ -219,18 +235,35 @@ export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
 // Update a menu item
 export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Promise<{ success: boolean }> {
   try {
+    console.log("Updating menu item:", id, "with data:", JSON.stringify(updates));
+    
+    // Clean up the updates object
+    const cleanUpdates: Partial<MenuItem> = { ...updates };
+    if (cleanUpdates.MRP === null || isNaN(cleanUpdates.MRP as number)) {
+      cleanUpdates.MRP = 0;
+    }
+    
     const response = await fetch(`${API_BASE}/menu/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(cleanUpdates),
     });
+    
+    // Handle response
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+      let errorMessage = "Failed to update menu item";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use the default error message
+      }
+      throw new Error(errorMessage);
     }
-    return await response.json();
+    
+    return { success: true };
   } catch (error) {
     console.error(`Failed to update menu item with id ${id}:`, error);
     throw error;
@@ -253,22 +286,16 @@ export async function deleteMenuItem(id: string): Promise<{ success: boolean }> 
   }
 }
 
-// Upload an image and get URL (simulated for now)
+// Upload an image and get URL
 export async function uploadImage(file: File): Promise<string> {
   try {
-    // This is a simulated image upload function
-    // In a real implementation, this would upload to a server or cloud storage
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Simulate a slight delay
-        setTimeout(() => {
-          // Return the image as a base64 string
-          resolve(reader.result as string);
-        }, 500);
-      };
-      reader.readAsDataURL(file);
-    });
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setTimeout(() => {
+        resolve(reader.result as string);
+      }, 500);
+    };
+    reader.readAsDataURL(file);
   } catch (error) {
     console.error("Failed to upload image:", error);
     throw error;

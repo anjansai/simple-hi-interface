@@ -27,13 +27,13 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{item.itemName || 'Item Details'}</DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[60vh]">
-          <div className="space-y-4">
+        <ScrollArea className="max-h-[calc(80vh-120px)]">
+          <div className="space-y-4 pr-4">
             <div className="aspect-video w-full overflow-hidden bg-muted rounded-md">
               {item.imageUrl ? (
                 <img
@@ -86,7 +86,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           </div>
         </ScrollArea>
         
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 pt-2 bg-background">
           <Button onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
