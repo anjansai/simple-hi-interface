@@ -75,6 +75,11 @@ app.post('/api/menu', async (req, res) => {
       return res.status(400).json({ error: 'An item with this name already exists' });
     }
     
+    // Validate MRP is a valid number
+    if (req.body.MRP === undefined || req.body.MRP === null || isNaN(parseFloat(req.body.MRP)) || parseFloat(req.body.MRP) <= 0) {
+      return res.status(400).json({ error: 'Price must be a valid number greater than 0' });
+    }
+    
     const newItem = await menuRoutes.addMenuItem(req.body);
     res.status(201).json(newItem);
   } catch (error) {
@@ -99,11 +104,25 @@ app.put('/api/menu/:id', async (req, res) => {
       }
     }
     
-    const result = await menuRoutes.updateMenuItem(req.params.id, req.body);
-    if (result.modifiedCount === 0 && result.matchedCount === 0) {
-      return res.status(404).json({ error: 'Menu item not found' });
+    // Validate MRP is a valid number
+    if (req.body.MRP !== undefined && (isNaN(parseFloat(req.body.MRP)) || parseFloat(req.body.MRP) <= 0)) {
+      return res.status(400).json({ error: 'Price must be a valid number greater than 0' });
     }
-    res.json({ success: true, message: 'Menu item updated' });
+    
+    try {
+      const result = await menuRoutes.updateMenuItem(req.params.id, req.body);
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: 'Menu item not found' });
+      }
+      res.json({ 
+        success: true, 
+        message: 'Menu item updated successfully',
+        ...result 
+      });
+    } catch (error) {
+      console.error('Error in update operation:', error);
+      return res.status(500).json({ error: error.message || 'Failed to update menu item' });
+    }
   } catch (error) {
     console.error('Error updating menu item:', error);
     res.status(500).json({ error: 'Failed to update menu item' });

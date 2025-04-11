@@ -92,6 +92,15 @@ async function updateMenuItem(id, updates) {
     
     console.log("Updating menu item with id:", id, "Updates:", JSON.stringify(updates));
     
+    // Make sure MRP is a number if provided
+    if (updates.MRP !== undefined) {
+      if (isNaN(parseFloat(updates.MRP))) {
+        updates.MRP = 0; // Default to 0 if not a number
+      } else {
+        updates.MRP = parseFloat(updates.MRP);
+      }
+    }
+    
     const result = await collections.menu.updateOne(
       { _id: objectId },
       { $set: updates }

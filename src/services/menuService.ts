@@ -240,9 +240,14 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Pr
     
     // Clean up the updates object
     const cleanUpdates: Partial<MenuItem> = { ...updates };
-    if (cleanUpdates.MRP === null || isNaN(cleanUpdates.MRP as number)) {
-      cleanUpdates.MRP = 0;
+    
+    // Ensure MRP is a valid number
+    if (cleanUpdates.MRP === undefined || cleanUpdates.MRP === null || isNaN(Number(cleanUpdates.MRP))) {
+      throw new Error("MRP must be a valid number");
     }
+    
+    // Convert MRP to a number
+    cleanUpdates.MRP = Number(cleanUpdates.MRP);
     
     const response = await fetch(`${API_BASE}/menu/${id}`, {
       method: 'PUT',

@@ -37,7 +37,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const formSchema = z.object({
   itemName: z.string().min(1, "Item name is required"),
   itemCode: z.string().min(1, "Item code is required"),
-  MRP: z.number().positive("Price must be greater than 0").or(z.nan()),
+  MRP: z.number({
+    required_error: "Price is required",
+    invalid_type_error: "Price must be a number"
+  }).positive("Price must be greater than 0"),
   Category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   Type: z.number(),
@@ -213,11 +216,21 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
   const handleSubmit = async (data: FormValues) => {
     try {
+      // Validate MRP is a proper number and greater than 0
+      if (data.MRP === undefined || isNaN(data.MRP) || data.MRP <= 0) {
+        toast({
+          title: "Invalid price",
+          description: "Please enter a valid price greater than 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Ensure we have all required fields with proper types
       const itemData: MenuItem = {
         itemName: data.itemName,
         itemCode: data.itemCode,
-        MRP: isNaN(data.MRP) ? 0 : data.MRP,
+        MRP: data.MRP, // MRP is now validated properly
         Type: data.Type,
         Category: data.Category,
         description: data.description || '',
@@ -226,6 +239,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
       await onSubmit(itemData);
     } catch (error) {
       console.error("Form submission error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit form",
+        variant: "destructive",
+      });
     }
   };
 
@@ -328,10 +346,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
                         step="0.01"
                         value={isNaN(field.value) ? '' : field.value}
                         onChange={(e) => {
-                          const value = e.target.value === '' ? NaN : parseFloat(e.target.value);
+                          const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
                           field.onChange(value);
                         }}
                         placeholder="Enter price"
+                        required
                       />
                     </FormControl>
                     <FormMessage />
@@ -415,7 +434,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ({
           </Button>
           <Button 
             type="button" 
-            disabled={isLoading || !form.formState.isValid || uploadingImage}
+            disabled={
+              isLoading || 
+              !form.formState.isValid || 
+              uploadingImage || 
+              form.getValues('MRP') === undefined || 
+              isNaN(form.getValues('MRP')) ||
+              form.getValues('MRP') <= 0
+            }
             onClick={form.handleSubmit(handleSubmit)}
           >
             {(isLoading || uploadingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
