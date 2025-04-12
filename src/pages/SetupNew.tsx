@@ -1,35 +1,42 @@
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useMutation } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { Eye, EyeOff } from 'lucide-react';
-import { createNewInstance } from '@/services/instanceService';
+import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { createNewInstance, InstanceData } from '@/services/instanceService';
+import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
-const formSchema = z.object({
-  companyName: z.string().min(1, { message: "Company name is required" }),
-  companyEmail: z.string().email({ message: "Invalid email format" }).optional().or(z.literal('')),
-  userName: z.string().min(1, { message: "User name is required" }),
-  userEmail: z.string().email({ message: "Invalid email format" }).min(1, { message: "User email is required" }),
-  userPhone: z.string().min(10, { message: "Phone number must be at least 10 digits" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+// Define schema for form validation
+const setupSchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  companyEmail: z.string().email("Invalid email address").optional().or(z.literal('')),
+  userName: z.string().min(1, "User name is required"),
+  userEmail: z.string().email("Invalid email address").min(1, "User email is required"),
+  userPhone: z.string().min(10, "Valid phone number is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type SetupFormData = z.infer<typeof setupSchema>;
 
-const SetupNew = () => {
+const SetupNew: React.FC = () => {
   const navigate = useNavigate();
-  const [showPassword, setShowPassword] = React.useState(false);
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<SetupFormData>({
+    resolver: zodResolver(setupSchema),
     defaultValues: {
       companyName: '',
       companyEmail: '',
@@ -39,43 +46,68 @@ const SetupNew = () => {
       password: '',
     },
   });
-
-  const createInstanceMutation = useMutation({
-    mutationFn: createNewInstance,
-    onSuccess: () => {
-      toast.success("Instance created successfully! Redirecting to dashboard...");
-      // Redirect to dashboard after a short delay to show the toast
-      setTimeout(() => navigate('/'), 1500);
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to create instance. Please try again.");
+  
+  const onSubmit = async (data: SetupFormData) => {
+    setIsSubmitting(true);
+    try {
+      // Create instance data object with required fields
+      const instanceData: InstanceData = {
+        companyName: data.companyName,
+        companyEmail: data.companyEmail,
+        userName: data.userName,
+        userEmail: data.userEmail,
+        userPhone: data.userPhone,
+        password: data.password,
+      };
+      
+      const response = await createNewInstance(instanceData);
+      
+      toast({
+        title: "Setup successful",
+        description: "Your instance has been created successfully",
+      });
+      
+      // Store authentication data
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('userData', JSON.stringify(response.user));
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Setup failed:', error);
+      toast({
+        title: "Setup failed",
+        description: error.message || "Failed to create instance. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  });
-
-  const onSubmit = (values: FormValues) => {
-    createInstanceMutation.mutate(values);
   };
-
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Create New Instance</CardTitle>
-          <CardDescription>
-            Enter your details to set up a new restaurant instance
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-2xl space-y-8 bg-white p-8 shadow-md rounded-lg">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Create New Instance</h1>
+          <p className="text-muted-foreground mt-2">
+            Set up a new instance to start managing your business
+          </p>
+        </div>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Company Information</h2>
+              
               <FormField
                 control={form.control}
                 name="companyName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Company Name *</FormLabel>
+                    <FormLabel>Company Name*</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter company name" {...field} />
+                      <Input {...field} placeholder="Enter company name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -89,21 +121,25 @@ const SetupNew = () => {
                   <FormItem>
                     <FormLabel>Company Email (Optional)</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="company@example.com" {...field} />
+                      <Input {...field} placeholder="Enter company email" type="email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
+            
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Admin User Information</h2>
               
               <FormField
                 control={form.control}
                 name="userName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User Name *</FormLabel>
+                    <FormLabel>User Name*</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter your name" {...field} />
+                      <Input {...field} placeholder="Enter user name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -115,9 +151,9 @@ const SetupNew = () => {
                 name="userEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User Email *</FormLabel>
+                    <FormLabel>User Email*</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="user@example.com" {...field} />
+                      <Input {...field} placeholder="Enter user email" type="email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -129,9 +165,9 @@ const SetupNew = () => {
                 name="userPhone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User Phone *</FormLabel>
+                    <FormLabel>Phone Number*</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter phone number" {...field} />
+                      <Input {...field} placeholder="Enter phone number" type="tel" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -143,46 +179,37 @@ const SetupNew = () => {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password *</FormLabel>
+                    <FormLabel>Password*</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          placeholder="Enter password" 
-                          {...field} 
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full px-3"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </Button>
-                      </div>
+                      <Input {...field} placeholder="Enter password" type="password" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={createInstanceMutation.isPending}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:flex-1"
+                onClick={() => navigate('/')}
               >
-                {createInstanceMutation.isPending ? "Creating..." : "Create Instance"}
+                Cancel
               </Button>
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-xs text-muted-foreground">
-            By creating an instance, you agree to our Terms of Service and Privacy Policy
-          </p>
-        </CardFooter>
-      </Card>
+              <Button 
+                type="submit"
+                className="sm:flex-1"
+                disabled={isSubmitting}
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Instance
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
     </div>
   );
 };

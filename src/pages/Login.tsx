@@ -1,226 +1,226 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useMutation } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { checkInitialLogin, completeLogin } from '@/services/instanceService';
-import { toast } from 'sonner';
-import { Eye, EyeOff } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
-// Form schema for initial login (phone + company ID)
-const initialFormSchema = z.object({
-  userPhone: z.string().min(10, { message: "Phone number must be at least 10 digits" }),
-  companyId: z.string().min(1, { message: "Company ID is required" }),
+// First step validation schema
+const initialLoginSchema = z.object({
+  userPhone: z.string().min(1, "Phone number is required"),
+  companyId: z.string().min(1, "Company ID is required"),
 });
 
-// Form schema for password step
-const passwordFormSchema = z.object({
-  password: z.string().min(1, { message: "Password is required" }),
+// Second step validation schema
+const passwordSchema = z.object({
+  password: z.string().min(1, "Password is required"),
 });
 
-type InitialFormValues = z.infer<typeof initialFormSchema>;
-type PasswordFormValues = z.infer<typeof passwordFormSchema>;
+type InitialLoginData = z.infer<typeof initialLoginSchema>;
+type PasswordData = z.infer<typeof passwordSchema>;
 
-const Login = () => {
+const Login: React.FC = () => {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [initialData, setInitialData] = useState<InitialLoginData | null>(null);
   const navigate = useNavigate();
-  const [loginStep, setLoginStep] = useState<'initial' | 'password'>('initial');
-  const [userData, setUserData] = useState<{ userPhone: string; companyId: string }>({ 
-    userPhone: '', 
-    companyId: '' 
-  });
-  const [showPassword, setShowPassword] = useState(false);
+  const { toast } = useToast();
   
-  // Form for initial login step
-  const initialForm = useForm<InitialFormValues>({
-    resolver: zodResolver(initialFormSchema),
+  // Initial form (phone and company ID)
+  const initialForm = useForm<InitialLoginData>({
+    resolver: zodResolver(initialLoginSchema),
     defaultValues: {
       userPhone: '',
       companyId: '',
     },
   });
-
-  // Form for password step
-  const passwordForm = useForm<PasswordFormValues>({
-    resolver: zodResolver(passwordFormSchema),
+  
+  // Password form (second step)
+  const passwordForm = useForm<PasswordData>({
+    resolver: zodResolver(passwordSchema),
     defaultValues: {
       password: '',
     },
   });
-
-  // Initial login check mutation
-  const initialLoginMutation = useMutation({
-    mutationFn: (data: { userPhone: string; companyId: string }) => 
-      checkInitialLogin(data.userPhone, data.companyId),
-    onSuccess: (_, variables) => {
-      toast.success("User found! Please enter your password.");
-      setUserData(variables);
-      setLoginStep('password');
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Invalid credentials. Please try again.");
+  
+  // Handle initial login check
+  const handleInitialLogin = async (data: InitialLoginData) => {
+    setIsLoading(true);
+    try {
+      await checkInitialLogin(data.userPhone, data.companyId);
+      setInitialData(data);
+      setStep(2);
+    } catch (error: any) {
+      console.error('Login check failed:', error);
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid credentials. Please check your phone number and company ID.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-  });
-
-  // Complete login mutation
-  const completeLoginMutation = useMutation({
-    mutationFn: (data: { userPhone: string; companyId: string; password: string }) => 
-      completeLogin(data),
-    onSuccess: (data) => {
-      toast.success("Login successful! Redirecting to dashboard...");
+  };
+  
+  // Handle password submission
+  const handlePasswordSubmit = async (data: PasswordData) => {
+    if (!initialData) return;
+    
+    setIsLoading(true);
+    try {
+      const loginData = {
+        userPhone: initialData.userPhone,
+        companyId: initialData.companyId,
+        password: data.password,
+      };
       
-      // Store user data in local storage
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
+      const response = await completeLogin(loginData);
       
-      // Redirect to dashboard after a short delay
-      setTimeout(() => navigate('/'), 1000);
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Login failed. Please check your password and try again.");
+      // Store auth token or user data in local storage or context
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('userData', JSON.stringify(response.user));
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid password. Please try again.",
+        variant: "destructive",
+      });
+      // If password is wrong, let's go back to first step
+      setStep(1);
+    } finally {
+      setIsLoading(false);
     }
-  });
-
-  const onInitialSubmit = (values: InitialFormValues) => {
-    initialLoginMutation.mutate(values);
   };
-
-  const onPasswordSubmit = (values: PasswordFormValues) => {
-    completeLoginMutation.mutate({
-      ...userData,
-      password: values.password
-    });
-  };
-
-  const handleBackToInitial = () => {
-    setLoginStep('initial');
-    passwordForm.reset();
-  };
-
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Welcome to Anjan Sai's Application</CardTitle>
-          <CardDescription>
-            {loginStep === 'initial' 
-              ? "Enter your phone number and company ID to login" 
-              : "Enter your password to complete login"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loginStep === 'initial' ? (
-            <Form {...initialForm}>
-              <form onSubmit={initialForm.handleSubmit(onInitialSubmit)} className="space-y-4">
-                <FormField
-                  control={initialForm.control}
-                  name="userPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your phone number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={initialForm.control}
-                  name="companyId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter company ID" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md space-y-8 bg-white p-8 shadow-md rounded-lg">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Welcome to Anjan Sai's Application</h1>
+          <p className="text-muted-foreground mt-2">
+            {step === 1 
+              ? "Please enter your credentials to log in" 
+              : "Please enter your password to continue"}
+          </p>
+        </div>
+        
+        {step === 1 ? (
+          <Form {...initialForm}>
+            <form onSubmit={initialForm.handleSubmit(handleInitialLogin)} className="space-y-4">
+              <FormField
+                control={initialForm.control}
+                name="userPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter your phone number" type="tel" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={initialForm.control}
+                name="companyId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Company ID</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter company ID" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isLoading}
+              >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Next
+              </Button>
+              
+              <div className="text-center mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account?{' '}
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto" 
+                    onClick={() => navigate('/setup-new')}
+                  >
+                    Create a new instance
+                  </Button>
+                </p>
+              </div>
+            </form>
+          </Form>
+        ) : (
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter your password" type="password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex flex-col space-y-2">
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={initialLoginMutation.isPending}
+                  disabled={isLoading}
                 >
-                  {initialLoginMutation.isPending ? "Checking..." : "Continue"}
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Log In
                 </Button>
-              </form>
-            </Form>
-          ) : (
-            <Form {...passwordForm}>
-              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-                <div className="bg-muted p-3 rounded-md mb-4">
-                  <p className="text-sm font-medium">Phone: {userData.userPhone}</p>
-                  <p className="text-sm font-medium">Company ID: {userData.companyId}</p>
-                </div>
                 
-                <FormField
-                  control={passwordForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input 
-                            type={showPassword ? "text" : "password"} 
-                            placeholder="Enter your password" 
-                            {...field} 
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex space-x-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={handleBackToInitial}
-                    disabled={completeLoginMutation.isPending}
-                  >
-                    Back
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="flex-1"
-                    disabled={completeLoginMutation.isPending}
-                  >
-                    {completeLoginMutation.isPending ? "Logging in..." : "Login"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          {loginStep === 'initial' && (
-            <p className="text-sm text-muted-foreground">
-              Don't have an account? <a href="/setup-new" className="text-primary hover:underline">Create Instance</a>
-            </p>
-          )}
-        </CardFooter>
-      </Card>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setStep(1)}
+                  disabled={isLoading}
+                >
+                  Back
+                </Button>
+              </div>
+            </form>
+          </Form>
+        )}
+      </div>
     </div>
   );
 };

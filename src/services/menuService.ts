@@ -6,6 +6,7 @@ export interface MenuItem {
   itemName: string;
   itemCode: string;
   Category: string;
+  imageUrl?: string;
   image?: string;
   description?: string;
   MRP: number;
@@ -13,6 +14,8 @@ export interface MenuItem {
   isAvailable?: boolean;
   isVeg?: boolean;
   discount?: number;
+  StarterType?: string;
+  Type?: number;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }
@@ -21,7 +24,7 @@ export interface MenuItem {
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 // Fetch all menu items
-export async function fetchMenuItems(): Promise<MenuItem[]> {
+export async function getAllMenuItems(): Promise<MenuItem[]> {
   try {
     const response = await fetch(`${API_BASE}/menu`);
     
@@ -178,6 +181,11 @@ export async function deleteMenuItem(id: string): Promise<void> {
   }
 }
 
+// Generate a unique menu item code (alias for generateUniqueCode for backward compatibility)
+export async function generateItemCode(): Promise<string> {
+  return generateUniqueCode();
+}
+
 // Generate a unique menu item code
 export async function generateUniqueCode(): Promise<string> {
   try {
@@ -215,4 +223,45 @@ export async function uploadImage(file: File): Promise<string> {
       reject(error);
     };
   });
+}
+
+// Export menu items to CSV
+export async function exportToCSV(items: MenuItem[]): Promise<void> {
+  try {
+    if (!items || items.length === 0) {
+      throw new Error("No items to export");
+    }
+
+    // Create CSV header row
+    const headers = ["Item Name", "Item Code", "Category", "Price", "Description"];
+    
+    // Create CSV rows from items
+    const rows = items.map(item => [
+      `"${item.itemName || ''}"`,
+      `"${item.itemCode || ''}"`,
+      `"${item.Category || ''}"`,
+      `"${typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}"`,
+      `"${item.description || ''}"`
+    ]);
+    
+    // Combine header and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Create a blob and download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `menu-items-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error("Failed to export to CSV:", error);
+    throw error;
+  }
 }
