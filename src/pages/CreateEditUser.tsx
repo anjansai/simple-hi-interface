@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -44,8 +43,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { createUser, fetchUser, updateUser, UserFormData, UserUpdateData } from '@/services/userService';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserRoles } from '@/services/userService';
+import { useToast } from '@/hooks/use-toast';
 
-// Form schema
 const userFormSchema = z.object({
   userName: z.string().min(1, "Name is required"),
   userPhone: z.string().min(1, "Phone number is required"),
@@ -63,20 +62,17 @@ const CreateEditUser: React.FC = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [formValues, setFormValues] = useState<UserFormData | UserUpdateData | null>(null);
 
-  // Fetch user roles from settings
   const { data: userRoles = ['Admin', 'Manager', 'Cashier', 'Waiter'] } = useQuery({
     queryKey: ['userRoles'],
     queryFn: fetchUserRoles,
   });
 
-  // Fetch user data if in edit mode
   const { data: userData, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user', id],
     queryFn: () => fetchUser(id!),
     enabled: isEditMode,
   });
 
-  // Initialize form with default values or user data if in edit mode
   const form = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
@@ -88,7 +84,6 @@ const CreateEditUser: React.FC = () => {
     },
   });
 
-  // Update form when user data is loaded
   useEffect(() => {
     if (isEditMode && userData) {
       form.reset({
@@ -101,20 +96,17 @@ const CreateEditUser: React.FC = () => {
     }
   }, [userData, form, isEditMode]);
 
-  // Form submission handler
   const onSubmit = (values: UserFormData) => {
     setFormValues(values);
     setIsConfirmDialogOpen(true);
   };
 
-  // Handle confirmation dialog - create or update user
   const handleConfirm = async () => {
     if (!formValues) return;
     
     setIsSubmitting(true);
     try {
       if (isEditMode && id) {
-        // Update existing user - only specific fields
         const updateData: UserUpdateData = {
           userName: formValues.userName,
           userEmail: formValues.userEmail,
@@ -127,7 +119,6 @@ const CreateEditUser: React.FC = () => {
           description: "User updated successfully",
         });
       } else {
-        // Create new user
         await createUser(formValues as UserFormData);
         toast({
           title: "Success",
@@ -135,7 +126,6 @@ const CreateEditUser: React.FC = () => {
         });
       }
       
-      // Navigate back to staff page
       navigate('/staff');
     } catch (error: any) {
       toast({

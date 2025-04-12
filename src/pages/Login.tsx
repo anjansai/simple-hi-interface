@@ -49,7 +49,6 @@ const Login: React.FC = () => {
   });
   
   // Password form (second step)
-  // Make sure the password field starts empty
   const passwordForm = useForm<PasswordData>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
@@ -64,6 +63,8 @@ const Login: React.FC = () => {
       await checkInitialLogin(data.userPhone, data.companyId);
       setInitialData(data);
       setStep(2);
+      // Reset password field when moving to step 2
+      passwordForm.reset({ password: '' });
     } catch (error: any) {
       console.error('Login check failed:', error);
       toast({
@@ -108,8 +109,8 @@ const Login: React.FC = () => {
         description: error.message || "Invalid password. Please try again.",
         variant: "destructive",
       });
-      // If password is wrong, let's go back to first step
-      setStep(1);
+      // Reset the password field
+      passwordForm.reset({ password: '' });
     } finally {
       setIsLoading(false);
     }
@@ -196,6 +197,8 @@ const Login: React.FC = () => {
                         placeholder="Enter your password" 
                         type="password"
                         autoComplete="current-password"
+                        value={field.value} // Explicitly bind value
+                        onChange={(e) => field.onChange(e.target.value)} // Explicitly handle change
                       />
                     </FormControl>
                     <FormMessage />
