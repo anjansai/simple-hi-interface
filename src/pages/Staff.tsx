@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -44,7 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Pencil, Trash2, User, Users } from 'lucide-react';
-import { fetchStaffSettings, fetchUserRoles, fetchUsers } from '@/services/userService';
+import { fetchStaffSettings, fetchUserRoles, fetchUsers, deleteUser } from '@/services/userService';
 import { Skeleton } from '@/components/ui/skeleton';
 import UserDetailView from '@/components/user/UserDetailView';
 
@@ -67,7 +66,7 @@ const Staff = () => {
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
 
   // Fetch users
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery({
     queryKey: ['users', selectedRole],
     queryFn: () => fetchUsers(selectedRole),
   });
@@ -106,10 +105,16 @@ const Staff = () => {
   };
 
   const handleConfirmDelete = async () => {
-    // Deletion handled in the userService.ts
-    // resetState after delete
-    setUserToDelete(null);
-    setIsDeleteDialogOpen(false);
+    if (!userToDelete) return;
+    
+    try {
+      await deleteUser(userToDelete._id);
+      refetchUsers();
+      setUserToDelete(null);
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to delete user:", error);
+    }
   };
 
   return (

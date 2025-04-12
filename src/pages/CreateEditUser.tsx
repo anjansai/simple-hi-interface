@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -33,7 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { createUser, getUserById, updateUser, UserFormData, UserUpdateData } from '@/services/userService';
+import { createUser, fetchUser, updateUser, UserFormData, UserUpdateData } from '@/services/userService';
 import { useQuery } from '@tanstack/react-query';
 import { fetchSettings } from '@/services/settingsService';
 
@@ -59,7 +58,7 @@ const CreateEditUser = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-  const [formValues, setFormValues] = useState<UserFormData | null>(null);
+  const [formValues, setFormValues] = useState<UserFormData | UserUpdateData | null>(null);
 
   // Fetch user roles from settings
   const { data: roleSettings } = useQuery({
@@ -67,12 +66,12 @@ const CreateEditUser = () => {
     queryFn: () => fetchSettings('userRoles'),
   });
 
-  const userRoles = roleSettings?.roles || ['Admin', 'Manager', 'Cashier', 'Waiter'];
+  const userRoles = roleSettings?.userRoles?.roles || ['Admin', 'Manager', 'Cashier', 'Waiter'];
 
   // Fetch user data if in edit mode
   const { data: userData, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user', id],
-    queryFn: () => getUserById(id!),
+    queryFn: () => fetchUser(id!),
     enabled: isEditMode,
   });
 

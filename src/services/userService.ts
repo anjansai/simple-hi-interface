@@ -57,6 +57,9 @@ export async function fetchUser(id: string): Promise<any> {
   }
 }
 
+// Adding getUserById as an alias for fetchUser to fix the import issue
+export const getUserById = fetchUser;
+
 // Create a new user
 export async function createUser(userData: UserFormData): Promise<any> {
   try {
