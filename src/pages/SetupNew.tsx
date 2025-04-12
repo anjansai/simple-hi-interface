@@ -22,8 +22,8 @@ import { useToast } from '@/hooks/use-toast';
 const setupSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   companyEmail: z.string().email("Invalid email address").optional().or(z.literal('')),
-  userName: z.string().min(1, "User name is required"),
-  userEmail: z.string().email("Invalid email address").min(1, "User email is required"),
+  userName: z.string().min(1, "Name is required"),
+  userEmail: z.string().email("Invalid email address").min(1, "Email is required"),
   userPhone: z.string().min(10, "Valid phone number is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
@@ -137,9 +137,9 @@ const SetupNew: React.FC = () => {
                 name="userName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User Name*</FormLabel>
+                    <FormLabel>Name*</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter user name" />
+                      <Input {...field} placeholder="Enter your name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -151,9 +151,9 @@ const SetupNew: React.FC = () => {
                 name="userEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User Email*</FormLabel>
+                    <FormLabel>Email*</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter user email" type="email" />
+                      <Input {...field} placeholder="Enter your email" type="email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -167,7 +167,7 @@ const SetupNew: React.FC = () => {
                   <FormItem>
                     <FormLabel>Phone Number*</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter phone number" type="tel" />
+                      <Input {...field} placeholder="Enter your phone number" type="tel" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

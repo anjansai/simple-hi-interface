@@ -1,70 +1,39 @@
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { checkInitialLogin, completeLogin } from '@/services/instanceService';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// First step validation schema
 const initialLoginSchema = z.object({
   userPhone: z.string().min(1, "Phone number is required"),
   companyId: z.string().min(1, "Company ID is required"),
 });
 
-// Second step validation schema
-const passwordSchema = z.object({
-  password: z.string().min(1, "Password is required"),
-});
-
 type InitialLoginData = z.infer<typeof initialLoginSchema>;
-type PasswordData = z.infer<typeof passwordSchema>;
 
 const Login: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [initialData, setInitialData] = useState<InitialLoginData | null>(null);
+  const [password, setPassword] = useState(''); 
+  const [phone, setPhone] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  // Initial form (phone and company ID)
-  const initialForm = useForm<InitialLoginData>({
-    resolver: zodResolver(initialLoginSchema),
-    defaultValues: {
-      userPhone: '',
-      companyId: '',
-    },
-  });
-  
-  // Password form (second step)
-  const passwordForm = useForm<PasswordData>({
-    resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      password: '', // Ensure this is empty by default
-    },
-  });
-  
-  // Handle initial login check
-  const handleInitialLogin = async (data: InitialLoginData) => {
+
+  const handleInitialLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
     try {
-      await checkInitialLogin(data.userPhone, data.companyId);
-      setInitialData(data);
+      await checkInitialLogin(phone, companyId);
+      setInitialData({ userPhone: phone, companyId });
+      setPassword(''); // Ensure password is reset
       setStep(2);
-      // Reset password field when moving to step 2
-      passwordForm.reset({ password: '' });
     } catch (error: any) {
       console.error('Login check failed:', error);
       toast({
@@ -76,22 +45,19 @@ const Login: React.FC = () => {
       setIsLoading(false);
     }
   };
-  
-  // Handle password submission
-  const handlePasswordSubmit = async (data: PasswordData) => {
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!initialData) return;
     
     setIsLoading(true);
     try {
-      const loginData = {
+      const response = await completeLogin({
         userPhone: initialData.userPhone,
         companyId: initialData.companyId,
-        password: data.password,
-      };
+        password
+      });
       
-      const response = await completeLogin(loginData);
-      
-      // Store auth token or user data in local storage or context
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('userData', JSON.stringify(response.user));
       
@@ -100,7 +66,6 @@ const Login: React.FC = () => {
         description: "Welcome back!",
       });
       
-      // Redirect to dashboard
       navigate('/dashboard');
     } catch (error: any) {
       console.error('Login failed:', error);
@@ -109,13 +74,12 @@ const Login: React.FC = () => {
         description: error.message || "Invalid password. Please try again.",
         variant: "destructive",
       });
-      // Reset the password field
-      passwordForm.reset({ password: '' });
+      setPassword(''); // Clear password on error
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md space-y-8 bg-white p-8 shadow-md rounded-lg">
@@ -129,105 +93,67 @@ const Login: React.FC = () => {
         </div>
         
         {step === 1 ? (
-          <Form {...initialForm}>
-            <form onSubmit={initialForm.handleSubmit(handleInitialLogin)} className="space-y-4">
-              <FormField
-                control={initialForm.control}
-                name="userPhone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter your phone number" type="tel" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <form onSubmit={handleInitialLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter your phone number"
               />
-              
-              <FormField
-                control={initialForm.control}
-                name="companyId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Company ID</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter company ID" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="companyId">Company ID</Label>
+              <Input
+                id="companyId"
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                placeholder="Enter company ID"
               />
-              
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={isLoading}
-              >
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Next
+            </Button>
+            
+            {/* Removing the "Create a new instance" link as requested */}
+          </form>
+        ) : (
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex flex-col space-y-2">
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Next
+                Log In
               </Button>
               
-              <div className="text-center mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Don't have an account?{' '}
-                  <Button 
-                    variant="link" 
-                    className="p-0 h-auto" 
-                    onClick={() => navigate('/setup-new')}
-                  >
-                    Create a new instance
-                  </Button>
-                </p>
-              </div>
-            </form>
-          </Form>
-        ) : (
-          <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
-              <FormField
-                control={passwordForm.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field} 
-                        placeholder="Enter your password" 
-                        type="password"
-                        autoComplete="current-password"
-                        value={field.value} // Explicitly bind value
-                        onChange={(e) => field.onChange(e.target.value)} // Explicitly handle change
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="flex flex-col space-y-2">
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading}
-                >
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Log In
-                </Button>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => setStep(1)}
-                  disabled={isLoading}
-                >
-                  Back
-                </Button>
-              </div>
-            </form>
-          </Form>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setStep(1)}
+                disabled={isLoading}
+              >
+                Back
+              </Button>
+            </div>
+          </form>
         )}
       </div>
     </div>

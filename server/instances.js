@@ -1,6 +1,6 @@
 
 const crypto = require('crypto');
-const { collections, connectToDatabase } = require('./mongodb');
+const { collections, connectToDatabase, db } = require('./mongodb');
 
 // SHA-1 hash function for passwords
 function sha1(data) {
@@ -83,7 +83,7 @@ async function createNewInstance(instanceData) {
     
     const result = await collections.tenants.insertOne(tenant);
     
-    // Create required collections for the instance
+    // Create required collections for the instance - all collection names in lowercase
     await Promise.all([
       // Create users collection and add admin user
       db.createCollection(`${apiKey}_users`),
