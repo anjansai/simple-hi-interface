@@ -20,7 +20,7 @@ const Login: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [initialData, setInitialData] = useState<InitialLoginData | null>(null);
-  const [password, setPassword] = useState(''); 
+  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [companyId, setCompanyId] = useState('');
   const navigate = useNavigate();
@@ -119,8 +119,6 @@ const Login: React.FC = () => {
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next
             </Button>
-            
-            {/* Removing the "Create a new instance" link as requested */}
           </form>
         ) : (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">

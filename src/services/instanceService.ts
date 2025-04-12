@@ -90,12 +90,7 @@ export async function completeLogin(loginData: UserLoginData): Promise<any> {
     
     if (!response.ok) {
       const errorData = await response.json();
-      // Ensure collection not found error is properly handled
-      if (errorData.error?.includes("collection not found")) {
-        throw new Error('Login failed. Please check your credentials.');
-      } else {
-        throw new Error(errorData.error || 'Login failed');
-      }
+      throw new Error(errorData.error || 'Login failed. Please check your credentials.');
     }
     
     return await response.json();

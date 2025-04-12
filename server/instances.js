@@ -1,6 +1,6 @@
 
 const crypto = require('crypto');
-const { collections, connectToDatabase, db } = require('./mongodb');
+const { collections, connectToDatabase } = require('./mongodb');
 
 // SHA-1 hash function for passwords
 function sha1(data) {
@@ -54,7 +54,7 @@ async function generateCompanyId(companyName) {
 // Create a new instance with all required collections
 async function createNewInstance(instanceData) {
   try {
-    await connectToDatabase();
+    const { db } = await connectToDatabase();
     
     // Check if phone already exists
     const phoneExists = await collections.masterUsers.findOne({ userPhone: instanceData.userPhone });
@@ -84,21 +84,26 @@ async function createNewInstance(instanceData) {
     const result = await collections.tenants.insertOne(tenant);
     
     // Create required collections for the instance - all collection names in lowercase
-    await Promise.all([
-      // Create users collection and add admin user
-      db.createCollection(`${apiKey}_users`),
-      db.createCollection(`${apiKey}_items`),
-      db.createCollection(`${apiKey}_orders`),
-      db.createCollection(`${apiKey}_settings`),
-      db.createCollection(`${apiKey}_inventory`)
-    ]);
+    const collectionNames = [
+      `${apiKey.toLowerCase()}_users`,
+      `${apiKey.toLowerCase()}_items`,
+      `${apiKey.toLowerCase()}_orders`,
+      `${apiKey.toLowerCase()}_settings`,
+      `${apiKey.toLowerCase()}_inventory`
+    ];
     
-    // Add collections to the collections object
-    collections[`${apiKey}_users`] = db.collection(`${apiKey}_users`);
-    collections[`${apiKey}_items`] = db.collection(`${apiKey}_items`);
-    collections[`${apiKey}_orders`] = db.collection(`${apiKey}_orders`);
-    collections[`${apiKey}_settings`] = db.collection(`${apiKey}_settings`);
-    collections[`${apiKey}_inventory`] = db.collection(`${apiKey}_inventory`);
+    // Create collections using the MongoDB native method
+    for (const collName of collectionNames) {
+      try {
+        await db.createCollection(collName);
+        // Add collections to the collections object
+        collections[collName] = db.collection(collName);
+      } catch (err) {
+        console.error(`Error creating collection ${collName}:`, err);
+        // If collection exists, just get a reference to it
+        collections[collName] = db.collection(collName);
+      }
+    }
     
     // Add admin user to users collection
     const adminUser = {
@@ -113,14 +118,15 @@ async function createNewInstance(instanceData) {
       userStatus: 'Active'
     };
     
-    await collections[`${apiKey}_users`].insertOne(adminUser);
+    const userCollectionName = `${apiKey.toLowerCase()}_users`;
+    await collections[userCollectionName].insertOne(adminUser);
     
     // Add user to master users collection
     await collections.masterUsers.insertOne({
       userName: instanceData.userName,
       userEmail: instanceData.userEmail,
       userPhone: instanceData.userPhone,
-      apiKey,
+      apiKey: apiKey.toLowerCase(), // Ensure lowercase for consistency
       companyId
     });
     
@@ -128,9 +134,10 @@ async function createNewInstance(instanceData) {
     return {
       companyName: instanceData.companyName,
       companyId,
-      apiKey,
+      apiKey: apiKey.toLowerCase(),
       userName: instanceData.userName,
-      userEmail: instanceData.userEmail
+      userEmail: instanceData.userEmail,
+      token: "dummy-auth-token" // In a real app, generate a JWT token
     };
   } catch (error) {
     console.error('Failed to create new instance:', error);
