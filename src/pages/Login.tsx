@@ -49,10 +49,11 @@ const Login: React.FC = () => {
   });
   
   // Password form (second step)
+  // Make sure the password field starts empty
   const passwordForm = useForm<PasswordData>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
-      password: '',
+      password: '', // Ensure this is empty by default
     },
   });
   
@@ -190,7 +191,12 @@ const Login: React.FC = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter your password" type="password" />
+                      <Input 
+                        {...field} 
+                        placeholder="Enter your password" 
+                        type="password"
+                        autoComplete="current-password"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
