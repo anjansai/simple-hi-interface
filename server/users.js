@@ -259,7 +259,6 @@ async function checkInitialLogin(phone, companyId) {
     
     // Check if tenant/company exists and is active
     const tenant = await collections.tenants.findOne({ 
-      apiKey: user.apiKey, 
       companyId: user.companyId 
     });
     
@@ -294,8 +293,26 @@ async function completeLogin(loginData) {
       throw new Error('Invalid credentials');
     }
     
-    // Find user in specific users collection
-    const usersCollection = collections[`${masterUser.apiKey}_users`];
+    console.log('Found master user:', masterUser);
+    console.log('User collection would be:', `${masterUser.apiKey.toLowerCase()}_users`);
+    
+    // Try to find the collection - handle both lower and uppercase collection names
+    let usersCollection;
+    const apiKeyLower = masterUser.apiKey.toLowerCase();
+    
+    // Check if the collection exists with lowercase name
+    if (collections[`${apiKeyLower}_users`]) {
+      usersCollection = collections[`${apiKeyLower}_users`];
+    } else if (collections[`${masterUser.apiKey}_users`]) {
+      // Try with original casing
+      usersCollection = collections[`${masterUser.apiKey}_users`];
+    } else {
+      // Try to get a reference to the collection if it exists
+      const { db } = await connectToDatabase();
+      usersCollection = db.collection(`${apiKeyLower}_users`);
+      collections[`${apiKeyLower}_users`] = usersCollection;
+    }
+    
     if (!usersCollection) {
       throw new Error('User collection not found');
     }
@@ -306,6 +323,8 @@ async function completeLogin(loginData) {
     if (!user) {
       throw new Error('User not found in instance database');
     }
+    
+    console.log('Found user in instance database');
     
     // Check password
     if (user.password !== loginData.password) {
@@ -323,12 +342,18 @@ async function completeLogin(loginData) {
       { $set: { lastUserLoggedIn: new Date() } }
     );
     
+    // Generate a simple token for session management
+    const token = crypto.randomBytes(32).toString('hex');
+    
     return {
-      userName: user.userName,
-      userEmail: user.userEmail,
-      userRole: user.userRole,
-      apiKey: masterUser.apiKey,
-      companyId: masterUser.companyId
+      token,
+      user: {
+        userName: user.userName,
+        userEmail: user.userEmail,
+        userRole: user.userRole,
+        apiKey: masterUser.apiKey.toLowerCase(),
+        companyId: masterUser.companyId
+      }
     };
   } catch (error) {
     console.error('Login failed:', error);

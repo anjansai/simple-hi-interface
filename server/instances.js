@@ -11,7 +11,7 @@ function sha1(data) {
 function generateApiKey() {
   const timestamp = new Date().getTime().toString();
   const random = Math.random().toString();
-  return crypto.createHash('sha256').update(timestamp + random).digest('hex').substring(0, 16);
+  return crypto.createHash('sha256').update(timestamp + random).digest('hex').substring(0, 16).toLowerCase();
 }
 
 // Generate a company ID based on company name
@@ -63,8 +63,10 @@ async function createNewInstance(instanceData) {
     }
     
     // Generate API key and company ID
-    const apiKey = generateApiKey();
+    const apiKey = generateApiKey().toLowerCase(); // Ensure lowercase
     const companyId = await generateCompanyId(instanceData.companyName);
+    
+    console.log(`Creating new instance with API key: ${apiKey} and company ID: ${companyId}`);
     
     // Create tenant record
     const tenant = {
@@ -85,16 +87,17 @@ async function createNewInstance(instanceData) {
     
     // Create required collections for the instance - all collection names in lowercase
     const collectionNames = [
-      `${apiKey.toLowerCase()}_users`,
-      `${apiKey.toLowerCase()}_items`,
-      `${apiKey.toLowerCase()}_orders`,
-      `${apiKey.toLowerCase()}_settings`,
-      `${apiKey.toLowerCase()}_inventory`
+      `${apiKey}_users`,
+      `${apiKey}_items`,
+      `${apiKey}_orders`,
+      `${apiKey}_settings`,
+      `${apiKey}_inventory`
     ];
     
     // Create collections using the MongoDB native method
     for (const collName of collectionNames) {
       try {
+        console.log(`Creating collection: ${collName}`);
         await db.createCollection(collName);
         // Add collections to the collections object
         collections[collName] = db.collection(collName);
@@ -118,7 +121,8 @@ async function createNewInstance(instanceData) {
       userStatus: 'Active'
     };
     
-    const userCollectionName = `${apiKey.toLowerCase()}_users`;
+    const userCollectionName = `${apiKey}_users`;
+    console.log(`Adding admin user to collection: ${userCollectionName}`);
     await collections[userCollectionName].insertOne(adminUser);
     
     // Add user to master users collection
@@ -126,7 +130,7 @@ async function createNewInstance(instanceData) {
       userName: instanceData.userName,
       userEmail: instanceData.userEmail,
       userPhone: instanceData.userPhone,
-      apiKey: apiKey.toLowerCase(), // Ensure lowercase for consistency
+      apiKey, // Already lowercase
       companyId
     });
     
@@ -134,10 +138,10 @@ async function createNewInstance(instanceData) {
     return {
       companyName: instanceData.companyName,
       companyId,
-      apiKey: apiKey.toLowerCase(),
+      apiKey,
       userName: instanceData.userName,
       userEmail: instanceData.userEmail,
-      token: "dummy-auth-token" // In a real app, generate a JWT token
+      token: crypto.randomBytes(32).toString('hex') // Generate a proper token
     };
   } catch (error) {
     console.error('Failed to create new instance:', error);

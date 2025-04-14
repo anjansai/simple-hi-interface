@@ -34,10 +34,25 @@ async function connectToDatabase() {
       collections.tenants = db.collection('tenants');
       collections.masterUsers = db.collection('masterUsers');
       
-      // Initialize dynamic collections based on API keys
-      // This would be done when a login happens in a real app
+      console.log('Core collections initialized:', Object.keys(collections).join(', '));
       
-      console.log('Collections initialized:', Object.keys(collections).join(', '));
+      // Try to initialize existing instance collections
+      try {
+        const tenants = await collections.tenants.find().toArray();
+        console.log(`Found ${tenants.length} tenants, initializing their collections...`);
+        
+        for (const tenant of tenants) {
+          const apiKey = tenant.apiKey.toLowerCase();
+          const collectionPrefixes = ['_users', '_items', '_orders', '_settings', '_inventory'];
+          
+          for (const prefix of collectionPrefixes) {
+            const collectionName = `${apiKey}${prefix}`;
+            collections[collectionName] = db.collection(collectionName);
+          }
+        }
+      } catch (err) {
+        console.error('Error initializing tenant collections:', err);
+      }
     }
     return { db, collections };
   } catch (error) {
@@ -68,5 +83,5 @@ module.exports = {
   collections,
   toObjectId,
   ObjectId,
-  db: () => db // Expose db for instance creation
+  db: () => db
 };

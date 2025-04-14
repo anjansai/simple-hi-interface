@@ -22,12 +22,13 @@ export interface UserLoginData {
 // Create a new instance
 export async function createNewInstance(data: InstanceData): Promise<any> {
   try {
-    // Hash password before sending
+    // Hash password before sending (using SHA-1)
     const hashedData = {
       ...data,
       password: sha1(data.password)
     };
     
+    console.log('Creating new instance with hashed password');
     const response = await fetch(`${API_BASE}/instances/create`, {
       method: 'POST',
       headers: {
@@ -51,6 +52,7 @@ export async function createNewInstance(data: InstanceData): Promise<any> {
 // Step 1: Initial login check
 export async function checkInitialLogin(phone: string, companyId: string): Promise<any> {
   try {
+    console.log(`Checking login for phone: ${phone} and companyId: ${companyId}`);
     const response = await fetch(`${API_BASE}/auth/check-login`, {
       method: 'POST',
       headers: {
@@ -74,12 +76,13 @@ export async function checkInitialLogin(phone: string, companyId: string): Promi
 // Complete login with password
 export async function completeLogin(loginData: UserLoginData): Promise<any> {
   try {
-    // Hash password before sending
+    // Hash password before sending (using SHA-1)
     const data = {
       ...loginData,
       password: sha1(loginData.password)
     };
     
+    console.log(`Completing login for phone: ${loginData.userPhone}`);
     const response = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: {
@@ -93,7 +96,9 @@ export async function completeLogin(loginData: UserLoginData): Promise<any> {
       throw new Error(errorData.error || 'Login failed. Please check your credentials.');
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('Login successful', result);
+    return result;
   } catch (error: any) {
     console.error('Login failed:', error);
     throw error;

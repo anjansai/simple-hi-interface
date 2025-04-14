@@ -16,12 +16,13 @@ import Login from "./pages/Login";
 import SetupNew from "./pages/SetupNew";
 import Staff from "./pages/Staff";
 import CreateEditUser from "./pages/CreateEditUser";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 // Check if user is authenticated
 const isAuthenticated = () => {
-  return localStorage.getItem('token') !== null;
+  return localStorage.getItem('authToken') !== null;
 };
 
 // Protected route component
@@ -49,7 +50,7 @@ const App = () => (
               <MainLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<Dashboard />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="menu" element={<MenuManagement />} />
             <Route path="orders" element={<Orders />} />
             <Route path="tables" element={<Tables />} />
@@ -60,8 +61,12 @@ const App = () => (
             <Route path="settings" element={<Settings />} />
           </Route>
           
-          {/* Redirect root to login if not authenticated */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Redirect root to dashboard if authenticated, otherwise to login */}
+          <Route path="/" element={
+            isAuthenticated() ? 
+            <Navigate to="/dashboard" replace /> : 
+            <Navigate to="/login" replace />
+          } />
           
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />

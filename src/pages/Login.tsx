@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -26,19 +26,26 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Check if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   const handleInitialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       await checkInitialLogin(phone, companyId);
       setInitialData({ userPhone: phone, companyId });
-      setPassword(''); // Ensure password is reset
+      setPassword(''); // Reset password
       setStep(2);
     } catch (error: any) {
-      console.error('Login check failed:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials. Please check your phone number and company ID.",
+        description: error.message || "Invalid credentials",
         variant: "destructive",
       });
     } finally {
@@ -58,6 +65,7 @@ const Login: React.FC = () => {
         password
       });
       
+      // Store auth data in localStorage
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('userData', JSON.stringify(response.user));
       
@@ -66,15 +74,16 @@ const Login: React.FC = () => {
         description: "Welcome back!",
       });
       
-      navigate('/dashboard');
+      // Explicit navigation to dashboard
+      navigate('/dashboard', { replace: true });
     } catch (error: any) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid password. Please try again.",
+        description: error.message || "Invalid password",
         variant: "destructive",
       });
-      setPassword(''); // Clear password on error
+      setPassword('');
     } finally {
       setIsLoading(false);
     }
