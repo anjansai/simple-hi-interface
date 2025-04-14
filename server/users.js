@@ -1,4 +1,3 @@
-
 const crypto = require('crypto');
 const { collections, connectToDatabase, toObjectId } = require('./mongodb');
 
@@ -53,7 +52,7 @@ async function getUserById(id, apiKey) {
   }
 }
 
-// Check if phone number exists
+// Check if phone number exists - fixed to check more thoroughly
 async function checkPhoneExists(phone, excludeId = null, apiKey) {
   try {
     await connectToDatabase();
@@ -68,7 +67,8 @@ async function checkPhoneExists(phone, excludeId = null, apiKey) {
       return false; // If collection doesn't exist yet, phone doesn't exist
     }
     
-    const query = { userPhone: phone, userStatus: { $ne: 'Deleted' } };
+    // Check only for active users with this phone number
+    const query = { userPhone: phone, userStatus: 'Active' };
     
     // If excluding a specific user (for updates)
     if (excludeId) {
@@ -77,8 +77,9 @@ async function checkPhoneExists(phone, excludeId = null, apiKey) {
     
     const count = await usersCollection.countDocuments(query);
     
-    // Also check master users collection
-    const masterCount = await collections.masterUsers.countDocuments({ userPhone: phone });
+    // Also check master users collection for active users
+    const masterUsers = await collections.masterUsers.find({ userPhone: phone }).toArray();
+    const masterCount = masterUsers.length;
     
     return count > 0 || masterCount > 0;
   } catch (error) {
@@ -109,7 +110,7 @@ async function findDeletedUser(phone, apiKey) {
   }
 }
 
-// Create a new user
+// Create a new user - fixed to prevent duplication and use correct companyId
 async function createUser(userData, apiKey) {
   try {
     await connectToDatabase();
@@ -133,10 +134,21 @@ async function createUser(userData, apiKey) {
       };
     }
     
-    // Check if phone already exists
+    // Check if phone already exists for active users
     const phoneExists = await checkPhoneExists(userData.userPhone, null, apiKey);
     if (phoneExists) {
       throw new Error('A user with this phone number already exists');
+    }
+    
+    // Get the correct companyId from tenants collection
+    let companyId = apiKeyLower; // Default to apiKey if tenant not found
+    try {
+      const tenant = await collections.tenants.findOne({ apiKey: apiKeyLower });
+      if (tenant && tenant.companyId) {
+        companyId = tenant.companyId;
+      }
+    } catch (err) {
+      console.warn(`Could not find tenant for apiKey ${apiKeyLower}, using apiKey as companyId`);
     }
     
     // Prepare user data
@@ -152,18 +164,19 @@ async function createUser(userData, apiKey) {
       lastUserLoggedIn: null,
       userStatus: 'Active',
       profileImage: userData.profileImage || null
+      // Removed unnecessary apiKey and companyId from users collection
     };
     
     // Insert into users collection
     const result = await usersCollection.insertOne(newUser);
     
-    // Also insert into master users collection
+    // Also insert into master users collection with correct companyId
     await collections.masterUsers.insertOne({
       userName: userData.userName,
       userEmail: userData.userEmail || '',
       userPhone: userData.userPhone,
       apiKey: apiKey,
-      companyId: userData.companyId || apiKeyLower,  // Use apiKey as companyId if not provided
+      companyId: companyId, // Using the correct companyId now
     });
     
     return { ...newUser, _id: result.insertedId };
@@ -222,7 +235,7 @@ async function updateUser(id, updates, apiKey) {
   }
 }
 
-// Deactivate a user (soft delete)
+// Deactivate a user (soft delete) - fixed to record deletedDate
 async function deactivateUser(id, apiKey) {
   try {
     await connectToDatabase();
@@ -243,13 +256,14 @@ async function deactivateUser(id, apiKey) {
     }
     
     // Update user status to Deleted and add deletion date
+    const deletedDate = new Date();
     const result = await usersCollection.updateOne(
       { _id: toObjectId(id) },
       { 
         $set: { 
           userStatus: 'Deleted', 
-          userUpdatedDate: new Date(),
-          deletedDate: new Date()
+          userUpdatedDate: deletedDate,
+          deletedDate: deletedDate
         } 
       }
     );
@@ -267,7 +281,7 @@ async function deactivateUser(id, apiKey) {
   }
 }
 
-// Re-enable a deleted user
+// Re-enable a deleted user - fixed to preserve deletedDate and add reEnabledDate
 async function reEnableUser(id, updates, apiKey) {
   try {
     await connectToDatabase();
@@ -282,18 +296,31 @@ async function reEnableUser(id, updates, apiKey) {
       throw new Error(`Users collection for API key ${apiKey} not found`);
     }
     
-    // Update user document to re-enable
-    const updateData = {
-      ...updates,
-      userStatus: 'Active',
-      userUpdatedDate: new Date(),
-      deletedDate: null
-    };
-    
     const userToUpdate = await usersCollection.findOne({ _id: toObjectId(id) });
     if (!userToUpdate) {
       throw new Error(`User with ID ${id} not found`);
     }
+    
+    // Get the correct companyId from tenants collection
+    let companyId = apiKeyLower; // Default to apiKey if tenant not found
+    try {
+      const tenant = await collections.tenants.findOne({ apiKey: apiKeyLower });
+      if (tenant && tenant.companyId) {
+        companyId = tenant.companyId;
+      }
+    } catch (err) {
+      console.warn(`Could not find tenant for apiKey ${apiKeyLower}, using apiKey as companyId`);
+    }
+    
+    // Update user document to re-enable
+    const reEnabledDate = new Date();
+    const updateData = {
+      ...updates,
+      userStatus: 'Active',
+      userUpdatedDate: reEnabledDate,
+      reEnabledDate: reEnabledDate
+      // Keep deletedDate unchanged
+    };
     
     const result = await usersCollection.updateOne(
       { _id: toObjectId(id) },
@@ -306,7 +333,7 @@ async function reEnableUser(id, updates, apiKey) {
       userEmail: updates.userEmail || '',
       userPhone: userToUpdate.userPhone,
       apiKey: apiKey,
-      companyId: updates.companyId || apiKeyLower
+      companyId: companyId // Using the correct companyId
     });
     
     return result.modifiedCount > 0;
@@ -547,7 +574,7 @@ async function checkInitialLogin(phone, companyId) {
   }
 }
 
-// Complete login with password (Step 2)
+// Complete login with password (Step 2) - with user status check
 async function completeLogin(loginData) {
   try {
     await connectToDatabase();

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchWithApiKey, API_BASE } from "@/services/apiService";
 
 interface UserData {
   userName: string;
@@ -18,6 +19,7 @@ interface AuthContextType {
   apiKey: string | null;
   login: (token: string, userData: UserData) => void;
   logout: () => void;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   apiKey: null,
   login: () => {},
   logout: () => {},
+  refreshUserData: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -51,6 +54,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsAuthenticated(true);
         setUserData(parsedData);
         setApiKey(parsedData.apiKey?.toLowerCase() || null);
+        
+        // Refresh user data on initial load to get latest role
+        refreshUserData();
       } catch (error) {
         console.error('Failed to parse user data:', error);
         // If parsing fails, clear localStorage and set as unauthenticated
@@ -80,6 +86,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     navigate('/login');
   };
 
+  // New function to refresh user data from server
+  const refreshUserData = async () => {
+    if (!isAuthenticated || !userData || !userData.userPhone || !apiKey) {
+      return;
+    }
+
+    try {
+      // Fetch latest user data using phone number and API key
+      const response = await fetchWithApiKey(`${API_BASE}/users/refresh-data`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userPhone: userData.userPhone
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to refresh user data');
+      }
+
+      const freshUserData = await response.json();
+      
+      // Update local storage and state with fresh data
+      if (freshUserData) {
+        const updatedUserData = {
+          ...userData,
+          ...freshUserData,
+        };
+        
+        localStorage.setItem('userData', JSON.stringify(updatedUserData));
+        setUserData(updatedUserData);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -88,6 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         apiKey,
         login,
         logout,
+        refreshUserData,
       }}
     >
       {children}

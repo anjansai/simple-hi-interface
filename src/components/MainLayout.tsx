@@ -20,7 +20,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from './UserAvatar';
 
 interface MainLayoutProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   showSettings?: boolean;
 }
 
@@ -180,8 +180,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, showSettings = true }
             </header>
           )}
           <div className="container p-6 max-w-7xl">
-            <Outlet />
-            {children}
+            {/* Remove duplicated content - Only render what's needed */}
+            {/* If Outlet is not available, use children, but not both */}
+            {children ? children : <Outlet />}
           </div>
         </main>
       </div>

@@ -71,7 +71,7 @@ export async function fetchUsers(
   }
 }
 
-// Export users to CSV
+// Export users to CSV with status filter
 export async function exportUsersToCSV(status: string = 'Active'): Promise<string> {
   try {
     const apiKey = getCurrentApiKey();
@@ -354,6 +354,43 @@ export async function addUserRole(role: string): Promise<any> {
     return await response.json();
   } catch (error: any) {
     console.error('Failed to add role:', error);
+    throw error;
+  }
+}
+
+// Add refreshUserData function to fetch fresh data for current user
+export async function refreshUserData(): Promise<any> {
+  try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const userData = localStorage.getItem('userData');
+    if (!userData) {
+      throw new Error('No user data found. Please log in again.');
+    }
+    
+    const parsedData = JSON.parse(userData);
+    const userPhone = parsedData.userPhone;
+    
+    if (!userPhone) {
+      throw new Error('User phone not found in stored data.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/users/refresh-data`, {
+      method: 'POST',
+      body: JSON.stringify({ userPhone }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to refresh user data');
+    }
+    
+    return await response.json();
+  } catch (error: any) {
+    console.error('Failed to refresh user data:', error);
     throw error;
   }
 }

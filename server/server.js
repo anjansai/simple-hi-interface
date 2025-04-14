@@ -1,6 +1,8 @@
+
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken'); // Add this import for JWT
 const { connectToDatabase, closeConnection, ObjectId } = require('./mongodb');
 const menuRoutes = require('./menu');
 const settingsRoutes = require('./settings');
@@ -10,6 +12,9 @@ const instanceRoutes = require('./instances');
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// JWT Secret Key - ideally should be in environment variables for production
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 
 // Middleware
 app.use(cors());
@@ -282,7 +287,7 @@ app.post('/api/login/complete', async (req, res) => {
     
     const userData = await userRoutes.completeLogin({ userPhone, companyId, password });
     
-    // Create a JWT token (not secure for production - just for demo)
+    // Create a more secure JWT token for production use
     const token = jwt.sign(
       { 
         userPhone: userData.userPhone, 
@@ -290,8 +295,11 @@ app.post('/api/login/complete', async (req, res) => {
         companyId: userData.companyId,
         role: userData.userRole
       }, 
-      'your-secret-key', 
-      { expiresIn: '24h' }
+      JWT_SECRET, // Using more secure secret key
+      { 
+        expiresIn: '24h',
+        algorithm: 'HS256' // Specify algorithm
+      }
     );
     
     res.json({ 
@@ -485,7 +493,7 @@ app.get('/api/users/export/csv', async (req, res) => {
     const users = result.users;
     
     // Convert users to CSV format
-    let csvContent = 'Name,Phone Number,Email,Role,User Status,Created Date,Deleted Date\n';
+    let csvContent = 'Name,Phone Number,Email,Role,User Status,Created Date,Deleted Date,Re-enabled Date\n';
     
     users.forEach(user => {
       const name = user.userName || 'N/A';
@@ -495,8 +503,9 @@ app.get('/api/users/export/csv', async (req, res) => {
       const status = user.userStatus || 'N/A';
       const createdDate = user.userCreatedDate ? new Date(user.userCreatedDate).toLocaleDateString() : 'N/A';
       const deletedDate = user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : 'N/A';
+      const reEnabledDate = user.reEnabledDate ? new Date(user.reEnabledDate).toLocaleDateString() : 'N/A';
       
-      csvContent += `${name},${phone},${email},${role},${status},${createdDate},${deletedDate}\n`;
+      csvContent += `${name},${phone},${email},${role},${status},${createdDate},${deletedDate},${reEnabledDate}\n`;
     });
     
     res.setHeader('Content-Type', 'text/csv');
