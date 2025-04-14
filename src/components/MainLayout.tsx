@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
-import { useMobileSize } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from './UserAvatar';
 
 interface MainLayoutProps {
@@ -25,7 +25,7 @@ interface MainLayoutProps {
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, showSettings = true }) => {
-  const { isMobile } = useMobileSize();
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();

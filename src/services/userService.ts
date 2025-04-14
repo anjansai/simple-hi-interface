@@ -1,4 +1,3 @@
-
 import { sha1 } from '@/lib/utils';
 import { API_BASE, fetchWithApiKey, getCurrentApiKey } from './apiService';
 
@@ -13,9 +12,9 @@ export interface UserFormData {
 
 export interface UserUpdateData {
   userName: string;
-  userEmail?: string;
+  userEmail: string;
   userRole: string;
-  profileImage?: string | null;
+  profileImage?: string;
 }
 
 export interface PaginationParams {

@@ -1,6 +1,14 @@
-
 import { sha1 } from '@/lib/utils';
 import { API_BASE, fetchWithApiKey } from './apiService';
+
+export interface InstanceData {
+  companyName: string;
+  companyEmail?: string;
+  userName: string;
+  userEmail: string;
+  userPhone: string;
+  password: string;
+}
 
 interface InitialLoginResponse {
   userName: string;
@@ -77,7 +85,7 @@ export async function completeLogin(loginData: CompleteLoginData): Promise<any> 
 }
 
 // Create a new instance
-export async function createNewInstance(instanceData: any): Promise<any> {
+export async function createNewInstance(instanceData: InstanceData): Promise<any> {
   try {
     const response = await fetch(`${API_BASE}/instances/create`, {
       method: 'POST',
