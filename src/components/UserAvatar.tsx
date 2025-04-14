@@ -1,87 +1,95 @@
 
 import React from 'react';
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { LogOut, User, Key, Mail, Phone, ChevronDown } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from './ui/dropdown-menu';
+import { LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
-const UserAvatar: React.FC = () => {
+const UserAvatar = () => {
   const { userData, logout } = useAuth();
-  const { toast } = useToast();
+  const navigate = useNavigate();
   
   const handleLogout = () => {
     logout();
+    navigate('/login');
+  };
+  
+  // Extract initials from user name
+  const getInitials = () => {
+    if (!userData || !userData.userName) return 'U';
     
-    toast({
-      title: "Logged out successfully",
-      description: "You have been logged out of your account",
-    });
+    const nameParts = userData.userName.split(' ');
+    if (nameParts.length === 1) {
+      return nameParts[0].substring(0, 2).toUpperCase();
+    }
+    
+    return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
   };
-  
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-  
-  if (!userData) return null;
-  
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="flex items-center gap-2 cursor-pointer">
-          <Avatar>
-            {userData.profileImage ? (
-              <AvatarImage src={userData.profileImage} alt={userData.userName} />
-            ) : (
-              <AvatarFallback>{getInitials(userData.userName)}</AvatarFallback>
-            )}
-          </Avatar>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </div>
+        <Avatar className="cursor-pointer border-2 border-primary/10 h-9 w-9">
+          {userData?.profileImage ? (
+            <AvatarImage 
+              src={userData.profileImage} 
+              alt={userData.userName || "User"} 
+              className="object-cover"
+            />
+          ) : (
+            <AvatarFallback className="bg-primary-foreground text-primary">
+              {getInitials()}
+            </AvatarFallback>
+          )}
+        </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{userData?.userName || 'User'}</p>
+            <p className="text-xs leading-none text-muted-foreground">
+              {userData?.userEmail || userData?.userPhone || ''}
+            </p>
+          </div>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <User className="mr-2 h-4 w-4" />
-            <span>{userData.userName || 'User'}</span>
-          </DropdownMenuItem>
-          {userData.userEmail && (
-            <DropdownMenuItem>
-              <Mail className="mr-2 h-4 w-4" />
-              <span>{userData.userEmail}</span>
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem>
-            <Phone className="mr-2 h-4 w-4" />
-            <span>{userData.userPhone}</span>
-          </DropdownMenuItem>
-          {userData.apiKey && (
-            <DropdownMenuItem>
-              <Key className="mr-2 h-4 w-4" />
-              <span>API Key: {userData.apiKey}</span>
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuGroup>
+        
+        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+          <div className="mb-1 font-semibold">API Key</div>
+          <div className="font-mono bg-muted p-1 rounded text-xs overflow-x-auto">
+            {userData?.apiKey || 'Not available'}
+          </div>
+        </div>
+        
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+        
+        <div className="px-2 py-1.5 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Role:</span>
+            <span className="font-medium">{userData?.userRole || 'User'}</span>
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-muted-foreground">Phone:</span>
+            <span className="font-medium">{userData?.userPhone || 'N/A'}</span>
+          </div>
+        </div>
+        
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuItem 
+          className="cursor-pointer text-destructive focus:text-destructive"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

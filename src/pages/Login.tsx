@@ -9,6 +9,8 @@ import { checkInitialLogin, completeLogin } from '@/services/instanceService';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const initialLoginSchema = z.object({
   userPhone: z.string().min(1, "Phone number is required"),
@@ -24,6 +26,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [companyId, setCompanyId] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAuthenticated, login } = useAuth();
@@ -42,12 +45,14 @@ const Login: React.FC = () => {
   const handleInitialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     try {
       await checkInitialLogin(phone, companyId);
       setInitialData({ userPhone: phone, companyId });
       setPassword(''); // Reset password
       setStep(2);
     } catch (error: any) {
+      setError(error.message || "Invalid credentials");
       toast({
         title: "Login failed",
         description: error.message || "Invalid credentials",
@@ -63,6 +68,7 @@ const Login: React.FC = () => {
     if (!initialData) return;
     
     setIsLoading(true);
+    setError(null);
     try {
       const response = await completeLogin({
         userPhone: initialData.userPhone,
@@ -81,6 +87,7 @@ const Login: React.FC = () => {
       // Explicit navigation to dashboard
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
+      setError(error.message || "Invalid password");
       console.error('Login error:', error);
       toast({
         title: "Login failed",
@@ -104,6 +111,14 @@ const Login: React.FC = () => {
               : "Please enter your password to continue"}
           </p>
         </div>
+        
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         
         {step === 1 ? (
           <form onSubmit={handleInitialLogin} className="space-y-4">

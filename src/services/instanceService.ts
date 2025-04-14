@@ -1,64 +1,32 @@
 
 import { sha1 } from '@/lib/utils';
+import { API_BASE, fetchWithApiKey } from './apiService';
 
-// Base URL for the API
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
-
-export interface InstanceData {
-  companyName: string;
-  companyEmail?: string;
+interface InitialLoginResponse {
   userName: string;
   userEmail: string;
-  userPhone: string;
-  password: string;
+  apiKey: string;
+  companyId: string;
 }
 
-export interface UserLoginData {
+interface CompleteLoginData {
   userPhone: string;
   companyId: string;
   password: string;
 }
 
-// Create a new instance
-export async function createNewInstance(data: InstanceData): Promise<any> {
+// Step 1: Initial login check with phone and company ID
+export async function checkInitialLogin(phone: string, companyId: string): Promise<InitialLoginResponse> {
   try {
-    // Hash password before sending (using SHA-1)
-    const hashedData = {
-      ...data,
-      password: sha1(data.password)
-    };
-    
-    console.log('Creating new instance with hashed password');
-    const response = await fetch(`${API_BASE}/instances/create`, {
+    const response = await fetch(`${API_BASE}/login/check`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(hashedData),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create instance');
-    }
-    
-    return await response.json();
-  } catch (error: any) {
-    console.error('Failed to create instance:', error);
-    throw error;
-  }
-}
-
-// Step 1: Initial login check
-export async function checkInitialLogin(phone: string, companyId: string): Promise<any> {
-  try {
-    console.log(`Checking login for phone: ${phone} and companyId: ${companyId}`);
-    const response = await fetch(`${API_BASE}/auth/check-login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ phone, companyId }),
+      body: JSON.stringify({ 
+        userPhone: phone, 
+        companyId 
+      })
     });
     
     if (!response.ok) {
@@ -68,39 +36,65 @@ export async function checkInitialLogin(phone: string, companyId: string): Promi
     
     return await response.json();
   } catch (error: any) {
-    console.error('Login check failed:', error);
+    console.error('Login check error:', error);
     throw error;
   }
 }
 
-// Complete login with password
-export async function completeLogin(loginData: UserLoginData): Promise<any> {
+// Step 2: Complete login with password
+export async function completeLogin(loginData: CompleteLoginData): Promise<any> {
   try {
-    // Hash password before sending (using SHA-1)
-    const data = {
-      ...loginData,
-      password: sha1(loginData.password)
-    };
+    const hashedPassword = sha1(loginData.password);
     
-    console.log(`Completing login for phone: ${loginData.userPhone}`);
-    const response = await fetch(`${API_BASE}/auth/login`, {
+    const response = await fetch(`${API_BASE}/login/complete`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        userPhone: loginData.userPhone,
+        companyId: loginData.companyId,
+        password: hashedPassword
+      })
     });
     
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Login failed. Please check your credentials.');
+      throw new Error(errorData.error || 'Login failed');
     }
     
-    const result = await response.json();
-    console.log('Login successful', result);
-    return result;
+    const data = await response.json();
+    
+    // Return both the user data and the JWT token
+    return {
+      user: data.userData,
+      token: data.token
+    };
   } catch (error: any) {
-    console.error('Login failed:', error);
+    console.error('Login error:', error);
+    throw error;
+  }
+}
+
+// Create a new instance
+export async function createNewInstance(instanceData: any): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/instances/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(instanceData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create instance');
+    }
+    
+    return await response.json();
+  } catch (error: any) {
+    console.error('Instance creation error:', error);
     throw error;
   }
 }

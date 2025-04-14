@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -43,10 +45,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { Pencil, Trash2, User, Users } from 'lucide-react';
-import { fetchStaffSettings, fetchUserRoles, fetchUsers, deleteUser } from '@/services/userService';
+import { FileDown, Pencil, RotateCcw, Trash2, User, Users, X } from 'lucide-react';
+import { 
+  fetchStaffSettings, 
+  fetchUserRoles, 
+  fetchUsers, 
+  deleteUser,
+  permanentlyDeleteUser,
+  exportUsersToCSV,
+  reEnableUser
+} from '@/services/userService';
 import { Skeleton } from '@/components/ui/skeleton';
 import UserDetailView from '@/components/user/UserDetailView';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useForm } from "react-hook-form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from '@/components/ui/use-toast';
 
 export interface UserData {
   _id: string;
@@ -56,8 +75,15 @@ export interface UserData {
   userRole: string;
   userCreatedDate: string;
   userStatus: string;
+  deletedDate?: string;
   profileImage?: string;
 }
+
+const formSchema = z.object({
+  userName: z.string().min(1, "Name is required"),
+  userEmail: z.string().email("Invalid email").optional().or(z.literal('')),
+  userRole: z.string().min(1, "Role is required"),
+});
 
 const Staff = () => {
   const navigate = useNavigate();
@@ -65,13 +91,41 @@ const Staff = () => {
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isReEnableDialogOpen, setIsReEnableDialogOpen] = useState(false);
+  const [isPermDeleteDialogOpen, setIsPermDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
+  const [userToReEnable, setUserToReEnable] = useState<UserData | null>(null);
+  const [userToPermDelete, setUserToPermDelete] = useState<UserData | null>(null);
+  const [statusTab, setStatusTab] = useState<string>('Active');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
-  // Fetch users
-  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery({
-    queryKey: ['users', selectedRole],
-    queryFn: () => fetchUsers(selectedRole),
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      userName: '',
+      userEmail: '',
+      userRole: '',
+    },
   });
+
+  // Fetch users with pagination
+  const { data, isLoading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery({
+    queryKey: ['users', selectedRole, statusTab, currentPage, pageSize],
+    queryFn: () => fetchUsers(selectedRole, {
+      page: currentPage,
+      pageSize: pageSize,
+      status: statusTab as 'Active' | 'Deleted' | 'Others'
+    }),
+  });
+
+  const users = data?.users || [];
+  const pagination = data?.pagination || {
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 0
+  };
 
   // Fetch user roles for filter
   const { data: roles = [], isLoading: rolesLoading } = useQuery({
@@ -91,6 +145,16 @@ const Staff = () => {
       console.error("Error fetching users:", usersError);
     }
   }, [usersError]);
+
+  React.useEffect(() => {
+    if (userToReEnable) {
+      form.reset({
+        userName: userToReEnable.userName,
+        userEmail: userToReEnable.userEmail || '',
+        userRole: userToReEnable.userRole,
+      });
+    }
+  }, [userToReEnable, form]);
 
   const canEdit = settings?.userEdit ?? false;
   const canDelete = settings?.userDelete ?? false;
@@ -121,13 +185,123 @@ const Staff = () => {
       refetchUsers();
       setUserToDelete(null);
       setIsDeleteDialogOpen(false);
+      
+      toast({
+        title: "User Deleted",
+        description: "User has been deactivated successfully.",
+      });
     } catch (error) {
       console.error("Failed to delete user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReEnableRequest = (user: UserData) => {
+    setUserToReEnable(user);
+    setIsReEnableDialogOpen(true);
+  };
+
+  const handlePermDeleteRequest = (user: UserData) => {
+    setUserToPermDelete(user);
+    setIsPermDeleteDialogOpen(true);
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (!userToPermDelete) return;
+    
+    try {
+      await permanentlyDeleteUser(userToPermDelete._id);
+      refetchUsers();
+      setUserToPermDelete(null);
+      setIsPermDeleteDialogOpen(false);
+      
+      toast({
+        title: "User Deleted Permanently",
+        description: "User has been permanently removed from the system.",
+      });
+    } catch (error) {
+      console.error("Failed to permanently delete user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to permanently delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReEnableSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!userToReEnable) return;
+    
+    try {
+      await reEnableUser(userToReEnable._id, {
+        ...values,
+        profileImage: userToReEnable.profileImage
+      });
+      
+      refetchUsers();
+      setUserToReEnable(null);
+      setIsReEnableDialogOpen(false);
+      
+      toast({
+        title: "User Re-enabled",
+        description: "User has been re-enabled successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to re-enable user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to re-enable user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const csvData = await exportUsersToCSV(statusTab);
+      
+      // Create a Blob and download the CSV
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `users-${statusTab.toLowerCase()}-${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "CSV Exported",
+        description: "User data has been exported to CSV successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+      toast({
+        title: "Error",
+        description: "Failed to export data to CSV",
+        variant: "destructive",
+      });
     }
   };
 
   // Make sure we have valid roles array, never empty string items
   const validRoles = roles.filter(role => role && typeof role === 'string');
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prevPage => prevPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < pagination.totalPages) {
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -142,7 +316,7 @@ const Staff = () => {
       <Separator />
 
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-0 pb-2">
           <div className="flex justify-between items-center">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -151,6 +325,27 @@ const Staff = () => {
               </CardTitle>
               <CardDescription>View and manage all users</CardDescription>
             </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="px-0 pb-0 pt-4">
+          <div className="px-6 pb-4">
+            <Tabs value={statusTab} onValueChange={setStatusTab}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="Active">Active Users</TabsTrigger>
+                <TabsTrigger value="Deleted">Deleted Users</TabsTrigger>
+                <TabsTrigger value="Others">Other Status</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          <div className="px-6 pb-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Filter by role:</span>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
@@ -165,9 +360,27 @@ const Staff = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Page size:</span>
+              <Select value={pageSize.toString()} onValueChange={(val) => {
+                setPageSize(Number(val));
+                setCurrentPage(1); // Reset to first page when changing page size
+              }}>
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue placeholder="10" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="35">35</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -197,9 +410,11 @@ const Staff = () => {
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <User className="h-12 w-12 text-muted-foreground opacity-50" />
                       <div className="text-muted-foreground">No users found</div>
-                      <Button onClick={handleCreateUser} variant="outline" size="sm">
-                        Create User
-                      </Button>
+                      {statusTab === 'Active' && (
+                        <Button onClick={handleCreateUser} variant="outline" size="sm">
+                          Create User
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -227,14 +442,16 @@ const Staff = () => {
                     <TableCell>{user.userRole}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        user.userStatus === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        user.userStatus === 'Active' ? 'bg-green-100 text-green-800' : 
+                        user.userStatus === 'Deleted' ? 'bg-red-100 text-red-800' : 
+                        'bg-yellow-100 text-yellow-800'
                       }`}>
                         {user.userStatus}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {canEdit && (
+                        {statusTab === 'Active' && canEdit && (
                           <Button 
                             variant="ghost" 
                             size="icon"
@@ -243,7 +460,7 @@ const Staff = () => {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         )}
-                        {canDelete && (
+                        {statusTab === 'Active' && canDelete && (
                           <Button 
                             variant="ghost" 
                             size="icon"
@@ -251,6 +468,24 @@ const Staff = () => {
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
+                        )}
+                        {statusTab === 'Deleted' && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleReEnableRequest(user)}
+                            >
+                              <RotateCcw className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handlePermDeleteRequest(user)}
+                            >
+                              <X className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -260,6 +495,38 @@ const Staff = () => {
             </TableBody>
           </Table>
         </CardContent>
+        
+        <CardFooter className="flex items-center justify-between p-6">
+          <div className="text-sm text-muted-foreground">
+            {pagination.total > 0 ? (
+              <>Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} users</>
+            ) : (
+              <>No users found</>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={goToPreviousPage}
+              disabled={currentPage <= 1 || users.length === 0}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {pagination.total > 0 ? pagination.page : 0} of {pagination.totalPages || 1}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={goToNextPage}
+              disabled={currentPage >= pagination.totalPages || users.length === 0}
+            >
+              Next
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
 
       {/* User Detail Dialog */}
@@ -282,8 +549,8 @@ const Staff = () => {
                 setIsDetailViewOpen(false);
                 handleDeleteRequest(selectedUser);
               }}
-              canEdit={canEdit}
-              canDelete={canDelete}
+              canEdit={canEdit && selectedUser.userStatus === 'Active'}
+              canDelete={canDelete && selectedUser.userStatus === 'Active'}
             />
           )}
         </DialogContent>
@@ -301,6 +568,136 @@ const Staff = () => {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Re-enable User Dialog */}
+      <Dialog open={isReEnableDialogOpen} onOpenChange={setIsReEnableDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Re-enable User</DialogTitle>
+            <DialogDescription>
+              Update information and re-enable this user account.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {userToReEnable && (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleReEnableSubmit)} className="space-y-4">
+                <div className="flex flex-col items-center mb-4">
+                  <Avatar className="w-20 h-20 mb-4">
+                    {userToReEnable.profileImage ? (
+                      <AvatarImage src={userToReEnable.profileImage} />
+                    ) : (
+                      <AvatarFallback>
+                        {userToReEnable.userName.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    Phone: {userToReEnable.userPhone}
+                  </div>
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="userName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="userEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email (Optional)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="email" 
+                          placeholder="Enter email address" 
+                          {...field} 
+                          value={field.value || ''} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="userRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {validRoles.map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {role}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <DialogFooter>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setUserToReEnable(null);
+                      setIsReEnableDialogOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Re-enable User</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Permanent Delete Confirmation Dialog */}
+      <AlertDialog open={isPermDeleteDialogOpen} onOpenChange={setIsPermDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Permanently Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="text-destructive font-bold mb-2">⚠️ This action cannot be undone! ⚠️</div>
+              <p>You are about to permanently delete this user from the system. All data associated with this user will be completely removed.</p>
+              <p className="mt-2">Are you absolutely sure you want to proceed with permanent deletion?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToPermDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPermanentDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, Permanently Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -256,138 +255,256 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// User Management Routes
+// Users routes
+app.post('/api/login/check', async (req, res) => {
+  try {
+    const { userPhone, companyId } = req.body;
+    
+    if (!userPhone || !companyId) {
+      return res.status(400).json({ error: 'Phone number and company ID are required' });
+    }
+    
+    const userData = await userRoutes.checkInitialLogin(userPhone, companyId);
+    res.json(userData);
+  } catch (error) {
+    console.error('Login check error:', error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
+app.post('/api/login/complete', async (req, res) => {
+  try {
+    const { userPhone, companyId, password } = req.body;
+    
+    if (!userPhone || !companyId || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    const userData = await userRoutes.completeLogin({ userPhone, companyId, password });
+    
+    // Create a JWT token (not secure for production - just for demo)
+    const token = jwt.sign(
+      { 
+        userPhone: userData.userPhone, 
+        apiKey: userData.apiKey,
+        companyId: userData.companyId,
+        role: userData.userRole
+      }, 
+      'your-secret-key', 
+      { expiresIn: '24h' }
+    );
+    
+    res.json({ 
+      token,
+      userData
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
 app.get('/api/users', async (req, res) => {
   try {
-    const { role } = req.query;
-    const apiKey = req.apiKey;
+    const { role, status = 'Active', page = 1, pageSize = 10 } = req.query;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
-    const users = await userRoutes.getUsers(role, apiKey);
-    res.json(users);
+    
+    let result;
+    
+    if (status && (status === 'Active' || status === 'Deleted' || status === 'Others')) {
+      // Get users with pagination and status filter
+      result = await userRoutes.getAllUsers(apiKey, status, parseInt(page), parseInt(pageSize));
+    } else {
+      // Legacy endpoint behavior - get users by role
+      const users = await userRoutes.getUsers(role, apiKey);
+      result = { 
+        users,
+        pagination: {
+          total: users.length,
+          page: 1,
+          pageSize: users.length,
+          totalPages: 1
+        }
+      };
+    }
+    
+    res.json(result);
   } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
+    console.error('Get users error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const apiKey = req.apiKey;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
+    
     const user = await userRoutes.getUserById(req.params.id, apiKey);
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    
     res.json(user);
   } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Failed to fetch user details' });
+    console.error('Get user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/users', async (req, res) => {
   try {
-    const userData = req.body;
-    const apiKey = req.apiKey || userData.apiKey;
+    const { userName, userPhone, userEmail, userRole, password, profileImage, companyId } = req.body;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
-    const newUser = await userRoutes.createUser(userData, apiKey);
-    res.status(201).json(newUser);
+    
+    if (!userName || !userPhone || !userRole) {
+      return res.status(400).json({ error: 'Name, phone, and role are required' });
+    }
+    
+    // Check for deleted user first
+    const deletedUser = await userRoutes.findDeletedUser(userPhone, apiKey);
+    if (deletedUser) {
+      return res.status(200).json({ 
+        isDeleted: true, 
+        deletedUser
+      });
+    }
+    
+    const result = await userRoutes.createUser({
+      userName,
+      userPhone,
+      userEmail,
+      userRole,
+      password,
+      profileImage,
+      companyId: companyId || apiKey.toLowerCase() // Use apiKey as companyId if not provided
+    }, apiKey);
+    
+    res.status(201).json(result);
   } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: error.message || 'Failed to create user' });
+    console.error('Create user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const apiKey = req.apiKey || req.body.apiKey;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
+    
     const result = await userRoutes.updateUser(req.params.id, req.body, apiKey);
+    
     if (!result) {
       return res.status(404).json({ error: 'User not found' });
     }
+    
     res.json({ success: true, message: 'User updated successfully' });
   } catch (error) {
-    console.error('Error updating user:', error);
-    res.status(500).json({ error: error.message || 'Failed to update user' });
+    console.error('Update user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.delete('/api/users/:id', async (req, res) => {
   try {
-    const apiKey = req.apiKey;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
+    
     const result = await userRoutes.deactivateUser(req.params.id, apiKey);
-    if (!result) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json({ success: true, message: 'User deactivated successfully' });
+    res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Error deactivating user:', error);
-    res.status(500).json({ error: error.message || 'Failed to deactivate user' });
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// User Role Settings
-app.get('/api/settings/userRoles', async (req, res) => {
+// Endpoints for re-enabling deleted users
+app.post('/api/users/:id/re-enable', async (req, res) => {
   try {
-    const apiKey = req.apiKey;
-    const roles = await userRoutes.getUserRoles(apiKey);
-    res.json({ roles });
-  } catch (error) {
-    console.error('Error fetching user roles:', error);
-    res.status(500).json({ error: 'Failed to fetch user roles' });
-  }
-});
-
-app.post('/api/settings/userRoles', async (req, res) => {
-  try {
-    const { role } = req.body;
-    const apiKey = req.apiKey || req.body.apiKey;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
-    const result = await userRoutes.addUserRole(role, apiKey);
-    res.json({ success: true, roles: result.roles });
+    
+    const result = await userRoutes.reEnableUser(req.params.id, req.body, apiKey);
+    res.json({ success: true, message: 'User re-enabled successfully' });
   } catch (error) {
-    console.error('Error adding user role:', error);
-    res.status(500).json({ error: error.message || 'Failed to add user role' });
+    console.error('Re-enable user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Staff Settings
-app.get('/api/settings/userEdit', async (req, res) => {
+// Endpoints for permanently deleting users
+app.delete('/api/users/:id/permanent', async (req, res) => {
   try {
-    const apiKey = req.apiKey;
-    const settings = await userRoutes.getStaffSettings(apiKey);
-    res.json(settings);
-  } catch (error) {
-    console.error('Error fetching staff settings:', error);
-    res.status(500).json({ error: 'Failed to fetch staff settings' });
-  }
-});
-
-app.put('/api/settings/userEdit', async (req, res) => {
-  try {
-    const apiKey = req.apiKey || req.body.apiKey;
+    const apiKey = req.headers['x-api-key'];
+    
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'API key is required' });
     }
-    const settings = await userRoutes.updateStaffSettings(req.body, apiKey);
-    res.json(settings);
+    
+    const result = await userRoutes.permanentlyDeleteUser(req.params.id, apiKey);
+    res.json({ success: true, message: 'User permanently deleted' });
   } catch (error) {
-    console.error('Error updating staff settings:', error);
-    res.status(500).json({ error: 'Failed to update staff settings' });
+    console.error('Permanent delete user error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export CSV endpoint for users
+app.get('/api/users/export/csv', async (req, res) => {
+  try {
+    const { status = 'Active' } = req.query;
+    const apiKey = req.headers['x-api-key'];
+    
+    if (!apiKey) {
+      return res.status(401).json({ error: 'API key is required' });
+    }
+    
+    // Get all users without pagination for export
+    const result = await userRoutes.getAllUsers(apiKey, status, 1, 1000);
+    const users = result.users;
+    
+    // Convert users to CSV format
+    let csvContent = 'Name,Phone Number,Email,Role,User Status,Created Date,Deleted Date\n';
+    
+    users.forEach(user => {
+      const name = user.userName || 'N/A';
+      const phone = user.userPhone || 'N/A';
+      const email = user.userEmail || 'N/A';
+      const role = user.userRole || 'N/A';
+      const status = user.userStatus || 'N/A';
+      const createdDate = user.userCreatedDate ? new Date(user.userCreatedDate).toLocaleDateString() : 'N/A';
+      const deletedDate = user.deletedDate ? new Date(user.deletedDate).toLocaleDateString() : 'N/A';
+      
+      csvContent += `${name},${phone},${email},${role},${status},${createdDate},${deletedDate}\n`;
+    });
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="users-${status.toLowerCase()}-${Date.now()}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Export users error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

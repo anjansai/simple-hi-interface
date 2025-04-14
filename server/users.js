@@ -87,6 +87,28 @@ async function checkPhoneExists(phone, excludeId = null, apiKey) {
   }
 }
 
+// Find deleted user by phone number
+async function findDeletedUser(phone, apiKey) {
+  try {
+    await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      return null;
+    }
+    
+    return await usersCollection.findOne({ userPhone: phone, userStatus: 'Deleted' });
+  } catch (error) {
+    console.error(`Failed to find deleted user: ${phone}`, error);
+    throw error;
+  }
+}
+
 // Create a new user
 async function createUser(userData, apiKey) {
   try {
@@ -100,6 +122,15 @@ async function createUser(userData, apiKey) {
     
     if (!usersCollection) {
       throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
+    
+    // Check if this user was previously deleted
+    const deletedUser = await findDeletedUser(userData.userPhone, apiKey);
+    if (deletedUser) {
+      return { 
+        isDeleted: true, 
+        deletedUser 
+      };
     }
     
     // Check if phone already exists
@@ -132,8 +163,7 @@ async function createUser(userData, apiKey) {
       userEmail: userData.userEmail || '',
       userPhone: userData.userPhone,
       apiKey: apiKey,
-      companyId: userData.companyId || 'DEFAULT001', // Get from session/token or passed data
-      profileImage: userData.profileImage || null
+      companyId: userData.companyId || apiKeyLower,  // Use apiKey as companyId if not provided
     });
     
     return { ...newUser, _id: result.insertedId };
@@ -180,10 +210,6 @@ async function updateUser(id, updates, apiKey) {
       userEmail: updates.userEmail || ''
     };
     
-    if (updates.profileImage !== undefined) {
-      masterUpdateData.profileImage = updates.profileImage;
-    }
-    
     await collections.masterUsers.updateOne(
       { userPhone: userToUpdate.userPhone, apiKey },
       { $set: masterUpdateData }
@@ -211,14 +237,111 @@ async function deactivateUser(id, apiKey) {
       throw new Error(`Users collection for API key ${apiKey} not found`);
     }
     
+    const userToDelete = await usersCollection.findOne({ _id: toObjectId(id) });
+    if (!userToDelete) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    
+    // Update user status to Deleted and add deletion date
     const result = await usersCollection.updateOne(
       { _id: toObjectId(id) },
-      { $set: { userStatus: 'Deleted', userUpdatedDate: new Date() } }
+      { 
+        $set: { 
+          userStatus: 'Deleted', 
+          userUpdatedDate: new Date(),
+          deletedDate: new Date()
+        } 
+      }
     );
+    
+    // Remove from masterUsers collection
+    await collections.masterUsers.deleteOne({ 
+      userPhone: userToDelete.userPhone, 
+      apiKey: apiKey 
+    });
     
     return result.modifiedCount > 0;
   } catch (error) {
     console.error(`Failed to deactivate user with id ${id}:`, error);
+    throw error;
+  }
+}
+
+// Re-enable a deleted user
+async function reEnableUser(id, updates, apiKey) {
+  try {
+    await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
+    
+    // Update user document to re-enable
+    const updateData = {
+      ...updates,
+      userStatus: 'Active',
+      userUpdatedDate: new Date(),
+      deletedDate: null
+    };
+    
+    const userToUpdate = await usersCollection.findOne({ _id: toObjectId(id) });
+    if (!userToUpdate) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    
+    const result = await usersCollection.updateOne(
+      { _id: toObjectId(id) },
+      { $set: updateData }
+    );
+    
+    // Add back to masterUsers collection
+    await collections.masterUsers.insertOne({
+      userName: updates.userName,
+      userEmail: updates.userEmail || '',
+      userPhone: userToUpdate.userPhone,
+      apiKey: apiKey,
+      companyId: updates.companyId || apiKeyLower
+    });
+    
+    return result.modifiedCount > 0;
+  } catch (error) {
+    console.error(`Failed to re-enable user with id ${id}:`, error);
+    throw error;
+  }
+}
+
+// Permanently delete a user
+async function permanentlyDeleteUser(id, apiKey) {
+  try {
+    await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
+    
+    const userToDelete = await usersCollection.findOne({ _id: toObjectId(id) });
+    if (!userToDelete) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    
+    // Delete from users collection
+    const result = await usersCollection.deleteOne({ _id: toObjectId(id) });
+    
+    return result.deletedCount > 0;
+  } catch (error) {
+    console.error(`Failed to permanently delete user with id ${id}:`, error);
     throw error;
   }
 }
@@ -338,6 +461,59 @@ async function updateStaffSettings(updates, apiKey) {
   }
 }
 
+// Get all users including deleted ones with pagination
+async function getAllUsers(apiKey, status = 'Active', page = 1, pageSize = 10) {
+  try {
+    await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
+    
+    // Build query based on status
+    let query = {};
+    if (status === 'Active') {
+      query = { userStatus: 'Active' };
+    } else if (status === 'Deleted') {
+      query = { userStatus: 'Deleted' };
+    } else if (status === 'Others') {
+      query = { userStatus: { $nin: ['Active', 'Deleted'] } };
+    }
+    
+    // Calculate skip value for pagination
+    const skip = (page - 1) * pageSize;
+    
+    // Get total count for pagination
+    const total = await usersCollection.countDocuments(query);
+    
+    // Get paginated results
+    const users = await usersCollection.find(query)
+      .sort({ userCreatedDate: -1 })
+      .skip(skip)
+      .limit(parseInt(pageSize))
+      .toArray();
+    
+    return { 
+      users,
+      pagination: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize)
+      }
+    };
+  } catch (error) {
+    console.error("Failed to fetch users:", error);
+    throw error;
+  }
+}
+
 // Initial login check (Step 1)
 async function checkInitialLogin(phone, companyId) {
   try {
@@ -430,9 +606,9 @@ async function completeLogin(loginData) {
       throw new Error('Invalid password');
     }
     
-    // If user is deleted/inactive
-    if (user.userStatus === 'Deleted') {
-      throw new Error('This account has been deactivated');
+    // Check if user is active
+    if (user.userStatus !== 'Active') {
+      throw new Error(`This account is ${user.userStatus.toLowerCase()}. Please contact your administrator.`);
     }
     
     // Update last login
@@ -467,5 +643,9 @@ module.exports = {
   getStaffSettings,
   updateStaffSettings,
   checkInitialLogin,
-  completeLogin
+  completeLogin,
+  findDeletedUser,
+  reEnableUser,
+  permanentlyDeleteUser,
+  getAllUsers
 };

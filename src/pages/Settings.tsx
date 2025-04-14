@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { fetchSettings, updateSettings } from '@/services/settingsService';
 import { fetchUserRoles, addUserRole, updateStaffSettings, fetchStaffSettings } from '@/services/userService';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,12 +25,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Badge } from '@/components/ui/badge';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Settings = () => {
   const { toast: toastUI } = useToast();
   const queryClient = useQueryClient();
+  const { userData } = useAuth();
   const [catalogSettings, setCatalogSettings] = useState({
     itemDelete: false,
     itemEdit: true
@@ -38,6 +40,9 @@ const Settings = () => {
     userEdit: true,
     userDelete: true
   });
+  
+  const isAdmin = userData?.userRole === 'Admin';
+  const isManager = userData?.userRole === 'Manager';
   
   // Confirmation dialog state
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -57,12 +62,14 @@ const Settings = () => {
   const { data: staffSettingsData, isLoading: staffSettingsLoading } = useQuery({
     queryKey: ['settings', 'userEdit'],
     queryFn: fetchStaffSettings,
+    enabled: isAdmin, // Only fetch if user is an Admin
   });
 
   // Fetch user roles
   const { data: userRoles = [], isLoading: rolesLoading } = useQuery({
     queryKey: ['userRoles'],
     queryFn: fetchUserRoles,
+    enabled: isAdmin, // Only fetch if user is an Admin
   });
 
   // Update settings when data is loaded
@@ -220,6 +227,17 @@ const Settings = () => {
     addRoleMutation.mutate(values.role);
   };
 
+  if (!isAdmin && !isManager) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Access Denied</h1>
+          <p className="text-muted-foreground">You don't have permission to access settings.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -230,6 +248,7 @@ const Settings = () => {
       <Separator />
 
       <div className="grid gap-6">
+        {/* Catalog Management - Visible to both Admins and Managers */}
         <Card>
           <CardHeader>
             <CardTitle>Catalog Management</CardTitle>
@@ -270,105 +289,110 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>User Management</CardTitle>
-            <CardDescription>
-              Controls for the staff management page functionality
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Edit Users</p>
-                <p className="text-sm text-muted-foreground">
-                  Allow user editing in the staff management page
-                </p>
-              </div>
-              <Switch 
-                checked={staffSettings.userEdit}
-                onCheckedChange={(checked) => handleToggleChangeRequest('staff', 'userEdit', checked)}
-                disabled={staffSettingsLoading || updateStaffSettingsMutation.isPending}
-              />
-            </div>
-            
-            <Separator />
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Delete Users</p>
-                <p className="text-sm text-muted-foreground">
-                  Allow user deletion in the staff management page
-                </p>
-              </div>
-              <Switch 
-                checked={staffSettings.userDelete}
-                onCheckedChange={(checked) => handleToggleChangeRequest('staff', 'userDelete', checked)}
-                disabled={staffSettingsLoading || updateStaffSettingsMutation.isPending}
-              />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>User Roles</CardTitle>
-            <CardDescription>
-              Configure user roles for the system
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="mb-4">
-              <p className="font-medium mb-2">Current Roles</p>
-              <div className="flex flex-wrap gap-2">
-                {rolesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading roles...</p>
-                ) : userRoles.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No roles defined yet</p>
-                ) : (
-                  userRoles.map(role => (
-                    <Badge key={role} variant="secondary" className="text-sm py-1 px-2">
-                      {role}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            
-            <Separator />
-            
-            <div>
-              <p className="font-medium mb-2">Add New Role</p>
-              <Form {...roleForm}>
-                <form onSubmit={roleForm.handleSubmit(onRoleSubmit)} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <FormField
-                      control={roleForm.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Enter role name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+        {/* User Management - Visible to Admins only */}
+        {isAdmin && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>
+                  Controls for the staff management page functionality
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Edit Users</p>
+                    <p className="text-sm text-muted-foreground">
+                      Allow user editing in the staff management page
+                    </p>
                   </div>
-                  <Button 
-                    type="submit" 
-                    size="sm"
-                    disabled={addRoleMutation.isPending}
-                    className="flex items-center gap-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add
-                  </Button>
-                </form>
-              </Form>
-            </div>
-          </CardContent>
-        </Card>
+                  <Switch 
+                    checked={staffSettings.userEdit}
+                    onCheckedChange={(checked) => handleToggleChangeRequest('staff', 'userEdit', checked)}
+                    disabled={staffSettingsLoading || updateStaffSettingsMutation.isPending}
+                  />
+                </div>
+                
+                <Separator />
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Delete Users</p>
+                    <p className="text-sm text-muted-foreground">
+                      Allow user deletion in the staff management page
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={staffSettings.userDelete}
+                    onCheckedChange={(checked) => handleToggleChangeRequest('staff', 'userDelete', checked)}
+                    disabled={staffSettingsLoading || updateStaffSettingsMutation.isPending}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>User Roles</CardTitle>
+                <CardDescription>
+                  Configure user roles for the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="mb-4">
+                  <p className="font-medium mb-2">Current Roles</p>
+                  <div className="flex flex-wrap gap-2">
+                    {rolesLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading roles...</p>
+                    ) : userRoles.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No roles defined yet</p>
+                    ) : (
+                      userRoles.map(role => (
+                        <Badge key={role} variant="secondary" className="text-sm py-1 px-2">
+                          {role}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <p className="font-medium mb-2">Add New Role</p>
+                  <Form {...roleForm}>
+                    <form onSubmit={roleForm.handleSubmit(onRoleSubmit)} className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <FormField
+                          control={roleForm.control}
+                          name="role"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input placeholder="Enter role name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        size="sm"
+                        disabled={addRoleMutation.isPending}
+                        className="flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </Button>
+                    </form>
+                  </Form>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Confirmation Dialog */}

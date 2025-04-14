@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -40,12 +39,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ArrowLeft, Loader2, Upload, X } from 'lucide-react';
-import { createUser, fetchUser, updateUser, UserFormData, UserUpdateData } from '@/services/userService';
+import { createUser, fetchUser, updateUser, UserFormData, UserUpdateData, reEnableUser } from '@/services/userService';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserRoles } from '@/services/userService';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
 
 const userFormSchema = z.object({
   userName: z.string().min(1, "Name is required"),
@@ -63,6 +71,8 @@ const CreateEditUser: React.FC = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isReEnableDialogOpen, setIsReEnableDialogOpen] = useState(false);
+  const [deletedUser, setDeletedUser] = useState<any>(null);
   const [formValues, setFormValues] = useState<UserFormData | UserUpdateData | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -126,7 +136,7 @@ const CreateEditUser: React.FC = () => {
     form.setValue('profileImage', null);
   };
 
-  const onSubmit = (values: UserFormData) => {
+  const onSubmit = async (values: UserFormData) => {
     // Add the profile image to form values
     const submissionValues = {
       ...values,
@@ -134,7 +144,32 @@ const CreateEditUser: React.FC = () => {
     };
     
     setFormValues(submissionValues);
-    setIsConfirmDialogOpen(true);
+    
+    // If this is a new user, check if it was previously deleted
+    if (!isEditMode) {
+      try {
+        const result = await createUser(submissionValues);
+        
+        // If the user was previously deleted, show re-enable dialog
+        if (result.isDeleted && result.deletedUser) {
+          setDeletedUser(result.deletedUser);
+          setIsReEnableDialogOpen(true);
+          return;
+        }
+        
+        // Otherwise, show the normal confirmation dialog
+        setIsConfirmDialogOpen(true);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to check user status",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // For edit mode, just show the confirmation dialog
+      setIsConfirmDialogOpen(true);
+    }
   };
 
   const handleConfirm = async () => {
@@ -173,6 +208,38 @@ const CreateEditUser: React.FC = () => {
     } finally {
       setIsSubmitting(false);
       setIsConfirmDialogOpen(false);
+    }
+  };
+
+  const handleReEnableUser = async () => {
+    if (!deletedUser || !formValues) return;
+    
+    setIsSubmitting(true);
+    try {
+      const updateData: UserUpdateData = {
+        userName: formValues.userName,
+        userEmail: formValues.userEmail,
+        userRole: formValues.userRole,
+        profileImage: formValues.profileImage,
+      };
+      
+      await reEnableUser(deletedUser._id, updateData);
+      
+      toast({
+        title: "Success",
+        description: "User has been re-enabled successfully",
+      });
+      
+      navigate('/staff');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to re-enable user",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setIsReEnableDialogOpen(false);
     }
   };
 
@@ -366,6 +433,7 @@ const CreateEditUser: React.FC = () => {
         </CardContent>
       </Card>
       
+      {/* Regular Confirmation Dialog */}
       <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -385,6 +453,81 @@ const CreateEditUser: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Re-enable User Dialog */}
+      <Dialog open={isReEnableDialogOpen} onOpenChange={setIsReEnableDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Re-enable Deleted User</DialogTitle>
+            <DialogDescription>
+              This user was previously deleted. Do you want to re-enable their account?
+            </DialogDescription>
+          </DialogHeader>
+
+          {deletedUser && (
+            <div className="py-4">
+              <div className="flex flex-col items-center mb-4">
+                <Avatar className="w-16 h-16 mb-2">
+                  {deletedUser.profileImage ? (
+                    <AvatarImage src={deletedUser.profileImage} />
+                  ) : (
+                    <AvatarFallback>
+                      {deletedUser.userName?.substring(0, 2).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <h3 className="font-medium text-center">{deletedUser.userName}</h3>
+                <p className="text-sm text-muted-foreground">{deletedUser.userPhone}</p>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Previous Role</Label>
+                    <p className="text-sm font-medium">{deletedUser.userRole}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">New Role</Label>
+                    <p className="text-sm font-medium">{formValues?.userRole}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label className="text-xs text-muted-foreground">Previous Email</Label>
+                  <p className="text-sm font-medium">{deletedUser.userEmail || 'N/A'}</p>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">New Email</Label>
+                  <p className="text-sm font-medium">{formValues?.userEmail || 'N/A'}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-xs text-muted-foreground">Deleted Date</Label>
+                  <p className="text-sm font-medium">
+                    {deletedUser.deletedDate 
+                      ? new Date(deletedUser.deletedDate).toLocaleDateString() 
+                      : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReEnableDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleReEnableUser}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Re-enable User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
