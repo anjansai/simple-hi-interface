@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -55,6 +56,7 @@ export interface UserData {
   userRole: string;
   userCreatedDate: string;
   userStatus: string;
+  profileImage?: string;
 }
 
 const Staff = () => {
@@ -66,7 +68,7 @@ const Staff = () => {
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
 
   // Fetch users
-  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery({
+  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery({
     queryKey: ['users', selectedRole],
     queryFn: () => fetchUsers(selectedRole),
   });
@@ -82,6 +84,13 @@ const Staff = () => {
     queryKey: ['staffSettings'],
     queryFn: () => fetchStaffSettings(),
   });
+
+  // Log any fetch errors
+  React.useEffect(() => {
+    if (usersError) {
+      console.error("Error fetching users:", usersError);
+    }
+  }, [usersError]);
 
   const canEdit = settings?.userEdit ?? false;
   const canDelete = settings?.userDelete ?? false;
@@ -117,6 +126,9 @@ const Staff = () => {
     }
   };
 
+  // Make sure we have valid roles array, never empty string items
+  const validRoles = roles.filter(role => role && typeof role === 'string');
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -146,8 +158,8 @@ const Staff = () => {
                   <SelectValue placeholder="All Roles" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Roles</SelectItem>
-                  {roles.map((role: string) => (
+                  <SelectItem value="all-roles">All Roles</SelectItem>
+                  {validRoles.map((role: string) => (
                     <SelectItem key={role} value={role}>{role}</SelectItem>
                   ))}
                 </SelectContent>

@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { SheetTrigger, Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import UserAvatar from './UserAvatar';
 import {
   Home,
   Menu,
@@ -14,11 +15,10 @@ import {
   Settings,
   Package,
   MenuSquare,
-  User,
 } from 'lucide-react';
 
 const navigationItems = [
-  { name: 'Dashboard', path: '/', icon: Home },
+  { name: 'Dashboard', path: '/dashboard', icon: Home },
   { name: 'Menu Management', path: '/menu', icon: Menu },
   { name: 'Staff', path: '/staff', icon: Users },
   { name: 'Orders', path: '/orders', icon: MenuSquare },
@@ -37,7 +37,7 @@ const MainLayout: React.FC = () => {
     <div className="flex min-h-screen">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col w-64 border-r bg-card">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex justify-between items-center">
           <h1 className="text-xl font-bold">Restaurant OS</h1>
         </div>
         <nav className="flex-1 p-4">
@@ -47,7 +47,7 @@ const MainLayout: React.FC = () => {
                 <Link
                   to={item.path}
                   className={`flex items-center gap-3 px-3 py-2 rounded-md ${
-                    location.pathname === item.path
+                    location.pathname.startsWith(item.path)
                       ? 'bg-primary text-primary-foreground'
                       : 'hover:bg-secondary'
                   }`}
@@ -60,23 +60,15 @@ const MainLayout: React.FC = () => {
           </ul>
         </nav>
         <div className="p-4 border-t">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-              <User size={16} className="text-primary-foreground" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Admin User</p>
-              <p className="text-xs text-muted-foreground">admin@restaurant.com</p>
-            </div>
-          </div>
+          <UserAvatar />
         </div>
       </div>
 
       {/* Mobile Navigation */}
-      <div className="md:hidden flex items-center p-4 border-b w-full fixed top-0 z-50 bg-background">
+      <div className="md:hidden flex items-center justify-between p-4 border-b w-full fixed top-0 z-50 bg-background">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="mr-2">
+            <Button variant="ghost" size="icon">
               <Menu size={20} />
             </Button>
           </SheetTrigger>
@@ -91,7 +83,7 @@ const MainLayout: React.FC = () => {
                     <Link
                       to={item.path}
                       className={`flex items-center gap-3 px-3 py-2 rounded-md ${
-                        location.pathname === item.path
+                        location.pathname.startsWith(item.path)
                           ? 'bg-primary text-primary-foreground'
                           : 'hover:bg-secondary'
                       }`}
@@ -103,9 +95,15 @@ const MainLayout: React.FC = () => {
                 ))}
               </ul>
             </nav>
+            <div className="py-4 border-t mt-auto">
+              <UserAvatar />
+            </div>
           </SheetContent>
         </Sheet>
         <h1 className="text-lg font-medium">Restaurant OS</h1>
+        <div className="flex items-center">
+          <UserAvatar />
+        </div>
       </div>
 
       {/* Main Content */}

@@ -18,7 +18,8 @@ async function getUsers(role) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     const query = role ? { userRole: role, userStatus: { $ne: 'Deleted' } } : { userStatus: { $ne: 'Deleted' } };
     
@@ -34,7 +35,8 @@ async function getUserById(id) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     return await usersCollection.findOne({ _id: toObjectId(id), userStatus: { $ne: 'Deleted' } });
   } catch (error) {
@@ -48,7 +50,8 @@ async function checkPhoneExists(phone, excludeId = null) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     const query = { userPhone: phone, userStatus: { $ne: 'Deleted' } };
     
@@ -74,7 +77,8 @@ async function createUser(userData) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     // Check if phone already exists
     const phoneExists = await checkPhoneExists(userData.userPhone);
@@ -93,7 +97,8 @@ async function createUser(userData) {
       userCreatedDate: now,
       userUpdatedDate: now,
       lastUserLoggedIn: null,
-      userStatus: 'Active'
+      userStatus: 'Active',
+      profileImage: userData.profileImage || null
     };
     
     // Insert into users collection
@@ -105,7 +110,8 @@ async function createUser(userData) {
       userEmail: userData.userEmail || '',
       userPhone: userData.userPhone,
       apiKey: apiKey,
-      companyId: 'DEFAULT001' // In a real app, get this from session/token
+      companyId: 'DEFAULT001', // In a real app, get this from session/token
+      profileImage: userData.profileImage || null
     });
     
     return { ...newUser, _id: result.insertedId };
@@ -120,7 +126,8 @@ async function updateUser(id, updates) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     const userToUpdate = await usersCollection.findOne({ _id: toObjectId(id) });
     if (!userToUpdate) {
@@ -139,9 +146,18 @@ async function updateUser(id, updates) {
     );
     
     // Update in master users collection as well
+    const masterUpdateData = {
+      userName: updates.userName,
+      userEmail: updates.userEmail || ''
+    };
+    
+    if (updates.profileImage !== undefined) {
+      masterUpdateData.profileImage = updates.profileImage;
+    }
+    
     await collections.masterUsers.updateOne(
       { userPhone: userToUpdate.userPhone, apiKey },
-      { $set: { userName: updates.userName, userEmail: updates.userEmail || '' } }
+      { $set: masterUpdateData }
     );
     
     return result.modifiedCount > 0;
@@ -156,7 +172,8 @@ async function deactivateUser(id) {
   try {
     await connectToDatabase();
     const apiKey = getCurrentApiKey();
-    const usersCollection = collections[`${apiKey}_users`] || collections.defaultUsers;
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
     
     const result = await usersCollection.updateOne(
       { _id: toObjectId(id) },
@@ -311,6 +328,12 @@ async function completeLogin(loginData) {
       const { db } = await connectToDatabase();
       usersCollection = db.collection(`${apiKeyLower}_users`);
       collections[`${apiKeyLower}_users`] = usersCollection;
+      
+      // Check if the collection exists
+      const collInfo = await db.listCollections({ name: `${apiKeyLower}_users` }).toArray();
+      if (collInfo.length === 0) {
+        throw new Error('User collection not found');
+      }
     }
     
     if (!usersCollection) {
@@ -351,8 +374,10 @@ async function completeLogin(loginData) {
         userName: user.userName,
         userEmail: user.userEmail,
         userRole: user.userRole,
+        userPhone: user.userPhone,
         apiKey: masterUser.apiKey.toLowerCase(),
-        companyId: masterUser.companyId
+        companyId: masterUser.companyId,
+        profileImage: user.profileImage || masterUser.profileImage
       }
     };
   } catch (error) {

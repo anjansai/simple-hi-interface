@@ -30,7 +30,15 @@ const Login: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (token) {
-      navigate('/dashboard');
+      // Ask user if they want to continue with existing session
+      const confirmContinue = window.confirm("You're already logged in. Continue with your session?");
+      if (confirmContinue) {
+        navigate('/dashboard');
+      } else {
+        // Log out if they don't want to continue
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
+      }
     }
   }, [navigate]);
 
@@ -111,6 +119,7 @@ const Login: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Enter your phone number"
+                required
               />
             </div>
             
@@ -121,6 +130,7 @@ const Login: React.FC = () => {
                 value={companyId}
                 onChange={(e) => setCompanyId(e.target.value)}
                 placeholder="Enter company ID"
+                required
               />
             </div>
             
@@ -141,6 +151,7 @@ const Login: React.FC = () => {
                 placeholder="Enter your password"
                 autoComplete="current-password"
                 autoFocus
+                required
               />
             </div>
             

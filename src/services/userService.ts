@@ -9,20 +9,22 @@ export interface UserFormData {
   userPhone: string;
   userEmail?: string;
   userRole: string;
-  password: string;
+  password?: string;
+  profileImage?: string | null;
 }
 
 export interface UserUpdateData {
   userName: string;
   userEmail?: string;
   userRole: string;
+  profileImage?: string | null;
 }
 
 // Fetch all users with optional role filter
 export async function fetchUsers(role?: string): Promise<any[]> {
   try {
     let url = `${API_BASE}/users`;
-    if (role) {
+    if (role && role !== 'all-roles') {
       url += `?role=${encodeURIComponent(role)}`;
     }
     
@@ -63,10 +65,10 @@ export const getUserById = fetchUser;
 // Create a new user
 export async function createUser(userData: UserFormData): Promise<any> {
   try {
-    // Hash password before sending
+    // Hash password before sending if it exists
     const data = {
       ...userData,
-      password: sha1(userData.password)
+      password: userData.password ? sha1(userData.password) : undefined
     };
     
     const response = await fetch(`${API_BASE}/users`, {

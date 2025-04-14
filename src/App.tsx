@@ -33,47 +33,59 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   return children;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/setup-new" element={<SetupNew />} />
-          
-          {/* Protected Routes */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="menu" element={<MenuManagement />} />
-            <Route path="orders" element={<Orders />} />
-            <Route path="tables" element={<Tables />} />
-            <Route path="staff" element={<Staff />} />
-            <Route path="staff/create-user" element={<CreateEditUser />} />
-            <Route path="staff/edit-user/:id" element={<CreateEditUser />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-          
-          {/* Redirect root to dashboard if authenticated, otherwise to login */}
-          <Route path="/" element={
-            isAuthenticated() ? 
-            <Navigate to="/dashboard" replace /> : 
-            <Navigate to="/login" replace />
-          } />
-          
-          {/* 404 Route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Ensure no auto-redirect from login page if already authenticated
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/login' && isAuthenticated()) {
+      // Don't automatically redirect from login page
+      // Let the Login component handle this decision
+      console.log("User is on login page and already authenticated");
+    }
+  }, []);
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/setup-new" element={<SetupNew />} />
+            
+            {/* Protected Routes */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="menu" element={<MenuManagement />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="tables" element={<Tables />} />
+              <Route path="staff" element={<Staff />} />
+              <Route path="staff/create-user" element={<CreateEditUser />} />
+              <Route path="staff/edit-user/:id" element={<CreateEditUser />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+            
+            {/* Redirect root to login if not authenticated */}
+            <Route path="/" element={
+              isAuthenticated() ? 
+              <Navigate to="/dashboard" replace /> : 
+              <Navigate to="/login" replace />
+            } />
+            
+            {/* 404 Route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
