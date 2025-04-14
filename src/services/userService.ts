@@ -1,8 +1,6 @@
 
 import { sha1 } from '@/lib/utils';
-
-// Base URL for the API
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+import { API_BASE, fetchWithApiKey, getCurrentApiKey } from './apiService';
 
 export interface UserFormData {
   userName: string;
@@ -23,12 +21,17 @@ export interface UserUpdateData {
 // Fetch all users with optional role filter
 export async function fetchUsers(role?: string): Promise<any[]> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     let url = `${API_BASE}/users`;
     if (role && role !== 'all-roles') {
       url += `?role=${encodeURIComponent(role)}`;
     }
     
-    const response = await fetch(url);
+    const response = await fetchWithApiKey(url);
     
     if (!response.ok) {
       const errorData = await response.json();
@@ -45,7 +48,12 @@ export async function fetchUsers(role?: string): Promise<any[]> {
 // Fetch a specific user by ID
 export async function fetchUser(id: string): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/users/${id}`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/users/${id}`);
     
     if (!response.ok) {
       const errorData = await response.json();
@@ -65,17 +73,20 @@ export const getUserById = fetchUser;
 // Create a new user
 export async function createUser(userData: UserFormData): Promise<any> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     // Hash password before sending if it exists
     const data = {
       ...userData,
-      password: userData.password ? sha1(userData.password) : undefined
+      password: userData.password ? sha1(userData.password) : undefined,
+      apiKey, // Add the current API key to ensure it's saved to the right collection
     };
     
-    const response = await fetch(`${API_BASE}/users`, {
+    const response = await fetchWithApiKey(`${API_BASE}/users`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(data),
     });
     
@@ -94,12 +105,14 @@ export async function createUser(userData: UserFormData): Promise<any> {
 // Update an existing user
 export async function updateUser(id: string, userData: UserUpdateData): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/users/${id}`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/users/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
+      body: JSON.stringify({...userData, apiKey}),
     });
     
     if (!response.ok) {
@@ -117,7 +130,12 @@ export async function updateUser(id: string, userData: UserUpdateData): Promise<
 // Delete (deactivate) a user
 export async function deleteUser(id: string): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/users/${id}`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/users/${id}`, {
       method: 'DELETE',
     });
     
@@ -136,7 +154,13 @@ export async function deleteUser(id: string): Promise<any> {
 // Fetch user roles
 export async function fetchUserRoles(): Promise<string[]> {
   try {
-    const response = await fetch(`${API_BASE}/settings/userRoles`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      console.warn('No API key found. Using default roles.');
+      return ['Admin', 'Manager', 'Staff'];
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/userRoles`);
     
     if (!response.ok) {
       const errorData = await response.json();
@@ -155,7 +179,12 @@ export async function fetchUserRoles(): Promise<string[]> {
 // Fetch staff settings
 export async function fetchStaffSettings(): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/settings/userEdit`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/userEdit`);
     
     if (!response.ok) {
       const errorData = await response.json();
@@ -176,12 +205,14 @@ export async function fetchStaffSettings(): Promise<any> {
 // Update staff settings
 export async function updateStaffSettings(settings: any): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/settings/userEdit`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/userEdit`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(settings),
+      body: JSON.stringify({...settings, apiKey}),
     });
     
     if (!response.ok) {
@@ -199,12 +230,14 @@ export async function updateStaffSettings(settings: any): Promise<any> {
 // Add a new role
 export async function addUserRole(role: string): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE}/settings/userRoles`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/userRoles`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role, apiKey }),
     });
     
     if (!response.ok) {

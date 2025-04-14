@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { checkInitialLogin, completeLogin } from '@/services/instanceService';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const initialLoginSchema = z.object({
   userPhone: z.string().min(1, "Phone number is required"),
@@ -25,22 +26,18 @@ const Login: React.FC = () => {
   const [companyId, setCompanyId] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAuthenticated, login } = useAuth();
 
   // Check if already logged in
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
+    if (isAuthenticated) {
       // Ask user if they want to continue with existing session
       const confirmContinue = window.confirm("You're already logged in. Continue with your session?");
       if (confirmContinue) {
         navigate('/dashboard');
-      } else {
-        // Log out if they don't want to continue
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userData');
       }
     }
-  }, [navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleInitialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,9 +70,8 @@ const Login: React.FC = () => {
         password
       });
       
-      // Store auth data in localStorage
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('userData', JSON.stringify(response.user));
+      // Use the context login function to store auth data
+      login(response.token, response.user);
       
       toast({
         title: "Login successful",

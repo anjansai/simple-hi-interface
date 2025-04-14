@@ -1,5 +1,5 @@
 
-// Menu service for fetching and managing menu items
+import { API_BASE, fetchWithApiKey, getCurrentApiKey } from './apiService';
 
 export interface MenuItem {
   _id?: string;
@@ -20,13 +20,15 @@ export interface MenuItem {
   updatedAt?: Date | string;
 }
 
-// Base URL for the API
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
-
 // Fetch all menu items
 export async function getAllMenuItems(): Promise<MenuItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/menu`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/menu`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -44,7 +46,12 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
 // Fetch menu items by category
 export async function fetchMenuItemsByCategory(category: string): Promise<MenuItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/menu/category/${encodeURIComponent(category)}`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/menu/category/${encodeURIComponent(category)}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -62,12 +69,17 @@ export async function fetchMenuItemsByCategory(category: string): Promise<MenuIt
 // Check if an item name already exists (for validation)
 export async function checkItemNameExists(name: string, excludeId?: string): Promise<boolean> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     let url = `${API_BASE}/menu/check-name?name=${encodeURIComponent(name)}`;
     if (excludeId) {
       url += `&excludeId=${excludeId}`;
     }
     
-    const response = await fetch(url);
+    const response = await fetchWithApiKey(url);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -85,12 +97,17 @@ export async function checkItemNameExists(name: string, excludeId?: string): Pro
 // Check if an item code already exists (for validation)
 export async function checkItemCodeExists(code: string, excludeId?: string): Promise<boolean> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     let url = `${API_BASE}/menu/check-code?code=${encodeURIComponent(code)}`;
     if (excludeId) {
       url += `&excludeId=${excludeId}`;
     }
     
-    const response = await fetch(url);
+    const response = await fetchWithApiKey(url);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -108,17 +125,19 @@ export async function checkItemCodeExists(code: string, excludeId?: string): Pro
 // Add a new menu item
 export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     // Validate MRP is a valid number
     if (item.MRP === undefined || item.MRP === null || isNaN(Number(item.MRP)) || Number(item.MRP) <= 0) {
       throw new Error('Price must be a valid number greater than 0');
     }
 
-    const response = await fetch(`${API_BASE}/menu`, {
+    const response = await fetchWithApiKey(`${API_BASE}/menu`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(item),
+      body: JSON.stringify({...item, apiKey}),
     });
     
     if (!response.ok) {
@@ -136,6 +155,11 @@ export async function addMenuItem(item: MenuItem): Promise<MenuItem> {
 // Update a menu item
 export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Promise<MenuItem> {
   try {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
     // Remove _id from updates to avoid immutable field error
     delete updates._id;
     
@@ -144,12 +168,9 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Pr
       throw new Error('Price must be a valid number greater than 0');
     }
     
-    const response = await fetch(`${API_BASE}/menu/${id}`, {
+    const response = await fetchWithApiKey(`${API_BASE}/menu/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({...updates, apiKey}),
     });
     
     if (!response.ok) {
@@ -167,7 +188,12 @@ export async function updateMenuItem(id: string, updates: Partial<MenuItem>): Pr
 // Delete a menu item
 export async function deleteMenuItem(id: string): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/menu/${id}`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/menu/${id}`, {
       method: 'DELETE',
     });
     
@@ -189,7 +215,12 @@ export async function generateItemCode(): Promise<string> {
 // Generate a unique menu item code
 export async function generateUniqueCode(): Promise<string> {
   try {
-    const response = await fetch(`${API_BASE}/settings/generate-code`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/generate-code`);
     
     if (!response.ok) {
       const errorText = await response.text();

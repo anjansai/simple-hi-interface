@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -11,48 +11,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User, Key, Mail, Phone, ChevronDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-interface UserData {
-  userName: string;
-  userEmail?: string;
-  userPhone: string;
-  userRole?: string;
-  apiKey?: string;
-  companyId?: string;
-  profileImage?: string;
-}
-
 const UserAvatar: React.FC = () => {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const navigate = useNavigate();
+  const { userData, logout } = useAuth();
   const { toast } = useToast();
   
-  useEffect(() => {
-    const storedUserData = localStorage.getItem('userData');
-    if (storedUserData) {
-      try {
-        const parsedData = JSON.parse(storedUserData);
-        setUserData(parsedData);
-      } catch (error) {
-        console.error('Failed to parse user data:', error);
-      }
-    }
-  }, []);
-  
   const handleLogout = () => {
-    // Clear authentication data
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userData');
+    logout();
     
     toast({
       title: "Logged out successfully",
       description: "You have been logged out of your account",
     });
-    
-    // Navigate to login page
-    navigate('/login');
   };
   
   const getInitials = (name?: string) => {

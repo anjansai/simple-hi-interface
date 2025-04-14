@@ -2,11 +2,28 @@
 const { collections, connectToDatabase, toObjectId } = require('./mongodb');
 
 // Get settings by type
-async function getSettingsByType(type) {
+async function getSettingsByType(type, apiKey) {
   try {
     await connectToDatabase();
-    const settings = await collections.settings.findOne({ type });
-    return settings || { type, itemDelete: false, itemEdit: true };
+    
+    if (!apiKey) {
+      // Return default settings if no API key
+      return { type, itemDelete: false, itemEdit: true };
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
+    
+    // Try to get settings from instance-specific collection
+    const settings = await settingsCollection.findOne({ type, apiKey: apiKeyLower });
+    
+    if (settings) {
+      return settings;
+    }
+    
+    // Fallback to general settings
+    const generalSettings = await collections.settings.findOne({ type });
+    return generalSettings || { type, itemDelete: false, itemEdit: true };
   } catch (error) {
     console.error(`Failed to fetch settings for type ${type}:`, error);
     throw error;
@@ -14,15 +31,31 @@ async function getSettingsByType(type) {
 }
 
 // Update settings
-async function updateSettings(type, updates) {
+async function updateSettings(type, updates, apiKey) {
   try {
     await connectToDatabase();
-    const result = await collections.settings.updateOne(
-      { type },
-      { $set: updates },
+    
+    if (!apiKey) {
+      throw new Error('API key is required to update settings');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
+    
+    // Ensure we're storing the api key in the document
+    const updatesWithApiKey = {
+      ...updates,
+      apiKey: apiKeyLower,
+      type
+    };
+    
+    const result = await settingsCollection.updateOne(
+      { type, apiKey: apiKeyLower },
+      { $set: updatesWithApiKey },
       { upsert: true }
     );
-    return { ...updates, type };
+    
+    return updatesWithApiKey;
   } catch (error) {
     console.error(`Failed to update settings for type ${type}:`, error);
     throw error;
@@ -30,12 +63,19 @@ async function updateSettings(type, updates) {
 }
 
 // Generate unique sequential item code
-async function generateUniqueCode() {
+async function generateUniqueCode(apiKey) {
   try {
     await connectToDatabase();
     
+    if (!apiKey) {
+      throw new Error('API key is required to generate a unique code');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`] || collections.menu;
+    
     // Find all items and sort by itemCode to find the highest code
-    const items = await collections.menu.find({})
+    const items = await menuCollection.find({})
       .sort({ itemCode: -1 })
       .toArray();
     

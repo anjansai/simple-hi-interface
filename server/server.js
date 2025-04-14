@@ -16,6 +16,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Middleware to extract API key from headers
+app.use((req, res, next) => {
+  req.apiKey = req.headers['x-api-key'] || process.env.CURRENT_API_KEY || 'defaultApiKey';
+  next();
+});
+
 // Connect to MongoDB when the server starts
 connectToDatabase()
   .then(() => {
@@ -29,7 +35,9 @@ connectToDatabase()
 // Menu Routes
 app.get('/api/menu', async (req, res) => {
   try {
-    const menuItems = await menuRoutes.getAllMenuItems();
+    const apiKey = req.apiKey;
+    console.log(`Fetching menu items with API key: ${apiKey}`);
+    const menuItems = await menuRoutes.getAllMenuItems(apiKey);
     res.json(menuItems);
   } catch (error) {
     console.error('Error fetching menu items:', error);
@@ -39,7 +47,8 @@ app.get('/api/menu', async (req, res) => {
 
 app.get('/api/menu/category/:category', async (req, res) => {
   try {
-    const menuItems = await menuRoutes.getMenuItemsByCategory(req.params.category);
+    const apiKey = req.apiKey;
+    const menuItems = await menuRoutes.getMenuItemsByCategory(req.params.category, apiKey);
     res.json(menuItems);
   } catch (error) {
     console.error('Error fetching menu items by category:', error);
@@ -50,7 +59,8 @@ app.get('/api/menu/category/:category', async (req, res) => {
 app.get('/api/menu/check-name', async (req, res) => {
   try {
     const { name, excludeId } = req.query;
-    const nameExists = await menuRoutes.checkItemNameExists(name, excludeId);
+    const apiKey = req.apiKey;
+    const nameExists = await menuRoutes.checkItemNameExists(name, excludeId, apiKey);
     res.json({ exists: nameExists });
   } catch (error) {
     console.error('Error checking item name:', error);
@@ -58,11 +68,11 @@ app.get('/api/menu/check-name', async (req, res) => {
   }
 });
 
-// Add the missing endpoint for checking item code
 app.get('/api/menu/check-code', async (req, res) => {
   try {
     const { code, excludeId } = req.query;
-    const codeExists = await menuRoutes.checkItemCodeExists(code, excludeId);
+    const apiKey = req.apiKey;
+    const codeExists = await menuRoutes.checkItemCodeExists(code, excludeId, apiKey);
     res.json({ exists: codeExists });
   } catch (error) {
     console.error('Error checking item code:', error);
@@ -72,8 +82,13 @@ app.get('/api/menu/check-code', async (req, res) => {
 
 app.post('/api/menu', async (req, res) => {
   try {
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    
     // Check if item name already exists
-    const nameExists = await menuRoutes.checkItemNameExists(req.body.itemName);
+    const nameExists = await menuRoutes.checkItemNameExists(req.body.itemName, null, apiKey);
     if (nameExists) {
       return res.status(400).json({ error: 'An item with this name already exists' });
     }
@@ -83,7 +98,7 @@ app.post('/api/menu', async (req, res) => {
       return res.status(400).json({ error: 'Price must be a valid number greater than 0' });
     }
     
-    const newItem = await menuRoutes.addMenuItem(req.body);
+    const newItem = await menuRoutes.addMenuItem(req.body, apiKey);
     res.status(201).json(newItem);
   } catch (error) {
     console.error('Error adding menu item:', error);
@@ -93,11 +108,17 @@ app.post('/api/menu', async (req, res) => {
 
 app.put('/api/menu/:id', async (req, res) => {
   try {
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    
     // Check if updated name already exists (excluding this item)
     if (req.body.itemName) {
       const nameExists = await menuRoutes.checkItemNameExists(
         req.body.itemName, 
-        req.params.id
+        req.params.id,
+        apiKey
       );
       
       if (nameExists) {
@@ -113,7 +134,7 @@ app.put('/api/menu/:id', async (req, res) => {
     }
     
     try {
-      const result = await menuRoutes.updateMenuItem(req.params.id, req.body);
+      const result = await menuRoutes.updateMenuItem(req.params.id, req.body, apiKey);
       if (result.matchedCount === 0) {
         return res.status(404).json({ error: 'Menu item not found' });
       }
@@ -134,7 +155,8 @@ app.put('/api/menu/:id', async (req, res) => {
 
 app.delete('/api/menu/:id', async (req, res) => {
   try {
-    const result = await menuRoutes.deleteMenuItem(req.params.id);
+    const apiKey = req.apiKey;
+    const result = await menuRoutes.deleteMenuItem(req.params.id, apiKey);
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Menu item not found' });
     }
@@ -148,7 +170,8 @@ app.delete('/api/menu/:id', async (req, res) => {
 // Generate unique item code - new sequential approach
 app.get('/api/settings/generate-code', async (req, res) => {
   try {
-    const code = await settingsRoutes.generateUniqueCode();
+    const apiKey = req.apiKey;
+    const code = await settingsRoutes.generateUniqueCode(apiKey);
     res.json({ code });
   } catch (error) {
     console.error('Error generating unique code:', error);
@@ -159,7 +182,8 @@ app.get('/api/settings/generate-code', async (req, res) => {
 // Settings Routes
 app.get('/api/settings/:type', async (req, res) => {
   try {
-    const settings = await settingsRoutes.getSettingsByType(req.params.type);
+    const apiKey = req.apiKey;
+    const settings = await settingsRoutes.getSettingsByType(req.params.type, apiKey);
     res.json(settings);
   } catch (error) {
     console.error('Error fetching settings:', error);
@@ -169,7 +193,11 @@ app.get('/api/settings/:type', async (req, res) => {
 
 app.put('/api/settings/:type', async (req, res) => {
   try {
-    const settings = await settingsRoutes.updateSettings(req.params.type, req.body);
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const settings = await settingsRoutes.updateSettings(req.params.type, req.body, apiKey);
     res.json(settings);
   } catch (error) {
     console.error('Error updating settings:', error);
@@ -216,8 +244,10 @@ app.post('/api/auth/login', async (req, res) => {
         userName: result.userName,
         userEmail: result.userEmail,
         userRole: result.userRole,
+        userPhone: result.userPhone,
         apiKey: result.apiKey,
-        companyId: result.companyId
+        companyId: result.companyId,
+        profileImage: result.profileImage
       }
     });
   } catch (error) {
@@ -230,7 +260,11 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     const { role } = req.query;
-    const users = await userRoutes.getUsers(role);
+    const apiKey = req.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const users = await userRoutes.getUsers(role, apiKey);
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -240,7 +274,11 @@ app.get('/api/users', async (req, res) => {
 
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const user = await userRoutes.getUserById(req.params.id);
+    const apiKey = req.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const user = await userRoutes.getUserById(req.params.id, apiKey);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -254,7 +292,11 @@ app.get('/api/users/:id', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const userData = req.body;
-    const newUser = await userRoutes.createUser(userData);
+    const apiKey = req.apiKey || userData.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const newUser = await userRoutes.createUser(userData, apiKey);
     res.status(201).json(newUser);
   } catch (error) {
     console.error('Error creating user:', error);
@@ -264,7 +306,11 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const result = await userRoutes.updateUser(req.params.id, req.body);
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const result = await userRoutes.updateUser(req.params.id, req.body, apiKey);
     if (!result) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -277,7 +323,11 @@ app.put('/api/users/:id', async (req, res) => {
 
 app.delete('/api/users/:id', async (req, res) => {
   try {
-    const result = await userRoutes.deactivateUser(req.params.id);
+    const apiKey = req.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const result = await userRoutes.deactivateUser(req.params.id, apiKey);
     if (!result) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -291,7 +341,8 @@ app.delete('/api/users/:id', async (req, res) => {
 // User Role Settings
 app.get('/api/settings/userRoles', async (req, res) => {
   try {
-    const roles = await userRoutes.getUserRoles();
+    const apiKey = req.apiKey;
+    const roles = await userRoutes.getUserRoles(apiKey);
     res.json({ roles });
   } catch (error) {
     console.error('Error fetching user roles:', error);
@@ -302,7 +353,11 @@ app.get('/api/settings/userRoles', async (req, res) => {
 app.post('/api/settings/userRoles', async (req, res) => {
   try {
     const { role } = req.body;
-    const result = await userRoutes.addUserRole(role);
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const result = await userRoutes.addUserRole(role, apiKey);
     res.json({ success: true, roles: result.roles });
   } catch (error) {
     console.error('Error adding user role:', error);
@@ -313,7 +368,8 @@ app.post('/api/settings/userRoles', async (req, res) => {
 // Staff Settings
 app.get('/api/settings/userEdit', async (req, res) => {
   try {
-    const settings = await userRoutes.getStaffSettings();
+    const apiKey = req.apiKey;
+    const settings = await userRoutes.getStaffSettings(apiKey);
     res.json(settings);
   } catch (error) {
     console.error('Error fetching staff settings:', error);
@@ -323,7 +379,11 @@ app.get('/api/settings/userEdit', async (req, res) => {
 
 app.put('/api/settings/userEdit', async (req, res) => {
   try {
-    const settings = await userRoutes.updateStaffSettings(req.body);
+    const apiKey = req.apiKey || req.body.apiKey;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    const settings = await userRoutes.updateStaffSettings(req.body, apiKey);
     res.json(settings);
   } catch (error) {
     console.error('Error updating staff settings:', error);

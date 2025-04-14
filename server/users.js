@@ -7,19 +7,20 @@ function sha1(data) {
   return crypto.createHash('sha1').update(data).digest('hex');
 }
 
-// Get current API key from context (in production, this would be from a JWT token)
-// For this demo, we'll use a hardcoded value
-const getCurrentApiKey = () => {
-  return process.env.CURRENT_API_KEY || 'defaultApiKey';
-};
-
 // Get all users with optional role filter
-async function getUsers(role) {
+async function getUsers(role, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
     
     const query = role ? { userRole: role, userStatus: { $ne: 'Deleted' } } : { userStatus: { $ne: 'Deleted' } };
     
@@ -31,12 +32,19 @@ async function getUsers(role) {
 }
 
 // Get user by ID
-async function getUserById(id) {
+async function getUserById(id, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
     
     return await usersCollection.findOne({ _id: toObjectId(id), userStatus: { $ne: 'Deleted' } });
   } catch (error) {
@@ -46,12 +54,19 @@ async function getUserById(id) {
 }
 
 // Check if phone number exists
-async function checkPhoneExists(phone, excludeId = null) {
+async function checkPhoneExists(phone, excludeId = null, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      return false; // If collection doesn't exist yet, phone doesn't exist
+    }
     
     const query = { userPhone: phone, userStatus: { $ne: 'Deleted' } };
     
@@ -73,15 +88,22 @@ async function checkPhoneExists(phone, excludeId = null) {
 }
 
 // Create a new user
-async function createUser(userData) {
+async function createUser(userData, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
     
     // Check if phone already exists
-    const phoneExists = await checkPhoneExists(userData.userPhone);
+    const phoneExists = await checkPhoneExists(userData.userPhone, null, apiKey);
     if (phoneExists) {
       throw new Error('A user with this phone number already exists');
     }
@@ -110,7 +132,7 @@ async function createUser(userData) {
       userEmail: userData.userEmail || '',
       userPhone: userData.userPhone,
       apiKey: apiKey,
-      companyId: 'DEFAULT001', // In a real app, get this from session/token
+      companyId: userData.companyId || 'DEFAULT001', // Get from session/token or passed data
       profileImage: userData.profileImage || null
     });
     
@@ -122,12 +144,19 @@ async function createUser(userData) {
 }
 
 // Update a user
-async function updateUser(id, updates) {
+async function updateUser(id, updates, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
     
     const userToUpdate = await usersCollection.findOne({ _id: toObjectId(id) });
     if (!userToUpdate) {
@@ -168,12 +197,19 @@ async function updateUser(id, updates) {
 }
 
 // Deactivate a user (soft delete)
-async function deactivateUser(id) {
+async function deactivateUser(id, apiKey) {
   try {
     await connectToDatabase();
-    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
     const apiKeyLower = apiKey.toLowerCase();
-    const usersCollection = collections[`${apiKeyLower}_users`] || collections.defaultUsers;
+    const usersCollection = collections[`${apiKeyLower}_users`];
+    
+    if (!usersCollection) {
+      throw new Error(`Users collection for API key ${apiKey} not found`);
+    }
     
     const result = await usersCollection.updateOne(
       { _id: toObjectId(id) },
@@ -188,12 +224,26 @@ async function deactivateUser(id) {
 }
 
 // Get user roles
-async function getUserRoles() {
+async function getUserRoles(apiKey) {
   try {
     await connectToDatabase();
+    if (!apiKey) {
+      return ['Admin', 'Manager', 'Staff']; // Default roles if no API key
+    }
     
-    const settings = await collections.settings.findOne({ type: 'userRoles' });
-    return settings?.roles || ['Admin', 'Manager', 'Staff']; // Default roles if none found
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
+    
+    // Try to get settings from instance-specific collection
+    const settings = await settingsCollection.findOne({ type: 'userRoles', apiKey: apiKeyLower });
+    
+    if (settings?.roles?.length > 0) {
+      return settings.roles;
+    }
+    
+    // Fallback to general settings
+    const generalSettings = await collections.settings.findOne({ type: 'userRoles' });
+    return generalSettings?.roles || ['Admin', 'Manager', 'Staff'];
   } catch (error) {
     console.error('Failed to fetch user roles:', error);
     return ['Admin', 'Manager', 'Staff']; // Default fallback
@@ -201,12 +251,18 @@ async function getUserRoles() {
 }
 
 // Add a user role
-async function addUserRole(role) {
+async function addUserRole(role, apiKey) {
   try {
     await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
     
     // Get current roles or create new
-    const currentSettings = await collections.settings.findOne({ type: 'userRoles' });
+    const currentSettings = await settingsCollection.findOne({ type: 'userRoles' });
     const roles = currentSettings?.roles || ['Admin', 'Manager', 'Staff'];
     
     // Check if role already exists
@@ -218,9 +274,9 @@ async function addUserRole(role) {
     roles.push(role);
     
     // Update or insert settings
-    const result = await collections.settings.updateOne(
+    const result = await settingsCollection.updateOne(
       { type: 'userRoles' },
-      { $set: { type: 'userRoles', roles } },
+      { $set: { type: 'userRoles', roles, apiKey: apiKeyLower } },
       { upsert: true }
     );
     
@@ -232,12 +288,26 @@ async function addUserRole(role) {
 }
 
 // Get staff settings
-async function getStaffSettings() {
+async function getStaffSettings(apiKey) {
   try {
     await connectToDatabase();
+    if (!apiKey) {
+      return { type: 'userEdit', userEdit: true, userDelete: true }; // Default settings if no API key
+    }
     
-    const settings = await collections.settings.findOne({ type: 'userEdit' });
-    return settings || { type: 'userEdit', userEdit: true, userDelete: true }; // Default settings if none found
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
+    
+    // Try to get settings from instance-specific collection
+    const settings = await settingsCollection.findOne({ type: 'userEdit', apiKey: apiKeyLower });
+    
+    if (settings) {
+      return settings;
+    }
+    
+    // Fallback to general settings
+    const generalSettings = await collections.settings.findOne({ type: 'userEdit' });
+    return generalSettings || { type: 'userEdit', userEdit: true, userDelete: true };
   } catch (error) {
     console.error('Failed to fetch staff settings:', error);
     return { type: 'userEdit', userEdit: true, userDelete: true }; // Default fallback
@@ -245,17 +315,23 @@ async function getStaffSettings() {
 }
 
 // Update staff settings
-async function updateStaffSettings(updates) {
+async function updateStaffSettings(updates, apiKey) {
   try {
     await connectToDatabase();
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
     
-    const result = await collections.settings.updateOne(
+    const apiKeyLower = apiKey.toLowerCase();
+    const settingsCollection = collections[`${apiKeyLower}_settings`] || collections.settings;
+    
+    const result = await settingsCollection.updateOne(
       { type: 'userEdit' },
-      { $set: { ...updates, type: 'userEdit' } },
+      { $set: { ...updates, type: 'userEdit', apiKey: apiKeyLower } },
       { upsert: true }
     );
     
-    return { type: 'userEdit', ...updates };
+    return { type: 'userEdit', ...updates, apiKey: apiKeyLower };
   } catch (error) {
     console.error('Failed to update staff settings:', error);
     throw error;
@@ -332,7 +408,7 @@ async function completeLogin(loginData) {
       // Check if the collection exists
       const collInfo = await db.listCollections({ name: `${apiKeyLower}_users` }).toArray();
       if (collInfo.length === 0) {
-        throw new Error('User collection not found');
+        throw new Error(`User collection ${apiKeyLower}_users not found`);
       }
     }
     
@@ -365,20 +441,14 @@ async function completeLogin(loginData) {
       { $set: { lastUserLoggedIn: new Date() } }
     );
     
-    // Generate a simple token for session management
-    const token = crypto.randomBytes(32).toString('hex');
-    
     return {
-      token,
-      user: {
-        userName: user.userName,
-        userEmail: user.userEmail,
-        userRole: user.userRole,
-        userPhone: user.userPhone,
-        apiKey: masterUser.apiKey.toLowerCase(),
-        companyId: masterUser.companyId,
-        profileImage: user.profileImage || masterUser.profileImage
-      }
+      userName: user.userName,
+      userEmail: user.userEmail,
+      userRole: user.userRole,
+      userPhone: user.userPhone,
+      apiKey: masterUser.apiKey.toLowerCase(),
+      companyId: masterUser.companyId,
+      profileImage: user.profileImage || masterUser.profileImage
     };
   } catch (error) {
     console.error('Login failed:', error);

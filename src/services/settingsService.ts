@@ -1,5 +1,5 @@
 
-// Settings service for fetching and updating application settings
+import { API_BASE, fetchWithApiKey, getCurrentApiKey } from './apiService';
 
 export interface CatalogSettings {
   _id?: string;
@@ -8,13 +8,15 @@ export interface CatalogSettings {
   itemEdit: boolean;
 }
 
-// Base URL for the API
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
-
 // Fetch settings by type
 export async function fetchSettings(type: string): Promise<CatalogSettings> {
   try {
-    const response = await fetch(`${API_BASE}/settings/${type}`);
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/${type}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -37,12 +39,19 @@ export async function fetchSettings(type: string): Promise<CatalogSettings> {
 // Update settings
 export async function updateSettings(settings: CatalogSettings): Promise<CatalogSettings> {
   try {
-    const response = await fetch(`${API_BASE}/settings/${settings.type}`, {
+    const apiKey = getCurrentApiKey();
+    if (!apiKey) {
+      throw new Error('No API key found. Please log in again.');
+    }
+    
+    const settingsWithApiKey = {
+      ...settings,
+      apiKey // Include the API key to ensure it's saved to the correct collection
+    };
+    
+    const response = await fetchWithApiKey(`${API_BASE}/settings/${settings.type}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(settings),
+      body: JSON.stringify(settingsWithApiKey),
     });
     
     if (!response.ok) {

@@ -2,21 +2,47 @@
 const { collections, connectToDatabase, toObjectId } = require('./mongodb');
 
 // Get all menu items
-async function getAllMenuItems() {
+async function getAllMenuItems(apiKey) {
   try {
     await connectToDatabase();
-    return await collections.menu.find({}).toArray();
+    
+    if (!apiKey) {
+      throw new Error('API key is required to fetch menu items');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      console.warn(`Menu collection for API key ${apiKey} not found. Returning empty array.`);
+      return [];
+    }
+    
+    return await menuCollection.find({}).toArray();
   } catch (error) {
-    console.error("Failed to fetch menu items:", error);
+    console.error('Failed to fetch menu items:', error);
     throw error;
   }
 }
 
 // Get menu items by category
-async function getMenuItemsByCategory(category) {
+async function getMenuItemsByCategory(category, apiKey) {
   try {
     await connectToDatabase();
-    return await collections.menu.find({ Category: category }).toArray();
+    
+    if (!apiKey) {
+      throw new Error('API key is required to fetch menu items by category');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      console.warn(`Menu collection for API key ${apiKey} not found. Returning empty array.`);
+      return [];
+    }
+    
+    return await menuCollection.find({ Category: category }).toArray();
   } catch (error) {
     console.error(`Failed to fetch menu items for category ${category}:`, error);
     throw error;
@@ -24,17 +50,29 @@ async function getMenuItemsByCategory(category) {
 }
 
 // Check if item name exists
-async function checkItemNameExists(name, excludeId = null) {
+async function checkItemNameExists(name, excludeId, apiKey) {
   try {
     await connectToDatabase();
-    const query = { itemName: { $regex: new RegExp(`^${name}$`, 'i') } };
     
-    // If excluding an item by ID, add it to the query
+    if (!apiKey) {
+      throw new Error('API key is required to check if item name exists');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      return false; // If collection doesn't exist, name doesn't exist
+    }
+    
+    const query = { itemName: name };
+    
+    // If we're excluding a specific item (for updates)
     if (excludeId) {
       query._id = { $ne: toObjectId(excludeId) };
     }
     
-    const count = await collections.menu.countDocuments(query);
+    const count = await menuCollection.countDocuments(query);
     return count > 0;
   } catch (error) {
     console.error(`Failed to check if item name exists: ${name}`, error);
@@ -43,17 +81,29 @@ async function checkItemNameExists(name, excludeId = null) {
 }
 
 // Check if item code exists
-async function checkItemCodeExists(code, excludeId = null) {
+async function checkItemCodeExists(code, excludeId, apiKey) {
   try {
     await connectToDatabase();
+    
+    if (!apiKey) {
+      throw new Error('API key is required to check if item code exists');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      return false; // If collection doesn't exist, code doesn't exist
+    }
+    
     const query = { itemCode: code };
     
-    // If excluding an item by ID, add it to the query
+    // If we're excluding a specific item (for updates)
     if (excludeId) {
       query._id = { $ne: toObjectId(excludeId) };
     }
     
-    const count = await collections.menu.countDocuments(query);
+    const count = await menuCollection.countDocuments(query);
     return count > 0;
   } catch (error) {
     console.error(`Failed to check if item code exists: ${code}`, error);
@@ -61,61 +111,66 @@ async function checkItemCodeExists(code, excludeId = null) {
   }
 }
 
-// Add a new menu item
-async function addMenuItem(item) {
+// Add a menu item
+async function addMenuItem(item, apiKey) {
   try {
     await connectToDatabase();
-    const result = await collections.menu.insertOne(item);
-    return { ...item, _id: result.insertedId };
+    
+    if (!apiKey) {
+      throw new Error('API key is required to add a menu item');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      throw new Error(`Menu collection for API key ${apiKey} not found`);
+    }
+    
+    // Add timestamps
+    const now = new Date();
+    const itemWithTimestamps = {
+      ...item,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const result = await menuCollection.insertOne(itemWithTimestamps);
+    return { ...itemWithTimestamps, _id: result.insertedId };
   } catch (error) {
-    console.error("Failed to add menu item:", error);
+    console.error('Failed to add menu item:', error);
     throw error;
   }
 }
 
 // Update a menu item
-async function updateMenuItem(id, updates) {
+async function updateMenuItem(id, updates, apiKey) {
   try {
     await connectToDatabase();
     
-    // Convert id to ObjectId
-    const objectId = toObjectId(id);
-    if (!objectId) {
-      throw new Error("Invalid ID format");
+    if (!apiKey) {
+      throw new Error('API key is required to update a menu item');
     }
     
-    // Check if the item exists
-    const existingItem = await collections.menu.findOne({ _id: objectId });
-    if (!existingItem) {
-      throw new Error("Item not found");
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      throw new Error(`Menu collection for API key ${apiKey} not found`);
     }
     
-    console.log("Updating menu item with id:", id, "Updates:", JSON.stringify(updates));
+    // Add updated timestamp
+    const updatesWithTimestamp = {
+      ...updates,
+      updatedAt: new Date()
+    };
     
-    // Make sure MRP is a number if provided
-    if (updates.MRP !== undefined) {
-      if (isNaN(parseFloat(updates.MRP))) {
-        updates.MRP = 0; // Default to 0 if not a number
-      } else {
-        updates.MRP = parseFloat(updates.MRP);
-      }
-    }
-    
-    const result = await collections.menu.updateOne(
-      { _id: objectId },
-      { $set: updates }
+    const result = await menuCollection.updateOne(
+      { _id: toObjectId(id) },
+      { $set: updatesWithTimestamp }
     );
     
-    if (result.matchedCount === 0) {
-      throw new Error("Item not found");
-    }
-    
-    return { 
-      success: true, 
-      matchedCount: result.matchedCount, 
-      modifiedCount: result.modifiedCount,
-      message: "Menu item updated successfully" 
-    };
+    return result;
   } catch (error) {
     console.error(`Failed to update menu item with id ${id}:`, error);
     throw error;
@@ -123,10 +178,22 @@ async function updateMenuItem(id, updates) {
 }
 
 // Delete a menu item
-async function deleteMenuItem(id) {
+async function deleteMenuItem(id, apiKey) {
   try {
     await connectToDatabase();
-    const result = await collections.menu.deleteOne({ _id: toObjectId(id) });
+    
+    if (!apiKey) {
+      throw new Error('API key is required to delete a menu item');
+    }
+    
+    const apiKeyLower = apiKey.toLowerCase();
+    const menuCollection = collections[`${apiKeyLower}_items`];
+    
+    if (!menuCollection) {
+      throw new Error(`Menu collection for API key ${apiKey} not found`);
+    }
+    
+    const result = await menuCollection.deleteOne({ _id: toObjectId(id) });
     return result;
   } catch (error) {
     console.error(`Failed to delete menu item with id ${id}:`, error);
