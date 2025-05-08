@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Check if user is authenticated on load
+  // Check if user is authenticated on load and refresh user data
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     const storedUserData = localStorage.getItem('userData');
@@ -86,7 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // New function to refresh user data from server
+  // Function to refresh user data from server
   const refreshUserData = async () => {
     if (!isAuthenticated || !userData || !userData.userPhone || !apiKey) {
       return;
@@ -108,15 +108,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const freshUserData = await response.json();
       
-      // Update local storage and state with fresh data
       if (freshUserData) {
+        // Create a new object with updated user data, preserving any fields not returned
         const updatedUserData = {
           ...userData,
           ...freshUserData,
         };
         
+        // Update localStorage and state with fresh data
         localStorage.setItem('userData', JSON.stringify(updatedUserData));
         setUserData(updatedUserData);
+        
+        console.log('User data refreshed successfully:', updatedUserData);
       }
     } catch (error) {
       console.error('Failed to refresh user data:', error);

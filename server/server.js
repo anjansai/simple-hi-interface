@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -288,6 +287,7 @@ app.post('/api/login/complete', async (req, res) => {
     const userData = await userRoutes.completeLogin({ userPhone, companyId, password });
     
     // Create a more secure JWT token for production use
+    const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
     const token = jwt.sign(
       { 
         userPhone: userData.userPhone, 
@@ -295,7 +295,7 @@ app.post('/api/login/complete', async (req, res) => {
         companyId: userData.companyId,
         role: userData.userRole
       }, 
-      JWT_SECRET, // Using more secure secret key
+      JWT_SECRET, // Using more secure secret key from environment
       { 
         expiresIn: '24h',
         algorithm: 'HS256' // Specify algorithm
@@ -483,14 +483,35 @@ app.get('/api/users/export/csv', async (req, res) => {
   try {
     const { status = 'Active' } = req.query;
     const apiKey = req.headers['x-api-key'];
+    const userPhone = req.query.userPhone; // For non-admin users to export only their data
     
     if (!apiKey) {
       return res.status(401).json({ error: 'API key is required' });
     }
     
-    // Get all users without pagination for export
-    const result = await userRoutes.getAllUsers(apiKey, status, 1, 1000);
-    const users = result.users;
+    // Find the user making the request
+    const { db } = await connectToDatabase();
+    const apiKeyLower = apiKey.toLowerCase();
+    const usersCollection = await userRoutes.getUserCollection(apiKey);
+    
+    // Get current user's role from the master users collection
+    const masterUser = await collections.masterUsers.findOne({ userPhone, apiKey });
+    const currentUser = await usersCollection.findOne({ userPhone });
+    const userRole = currentUser?.userRole || '';
+    
+    let users;
+    // For Admin and Manager, get all users; otherwise, get only the current user
+    if (userRole === 'Admin' || userRole === 'Manager') {
+      // Get all users without pagination for export
+      const result = await userRoutes.getAllUsers(apiKey, status, 1, 1000);
+      users = result.users;
+    } else if (userPhone) {
+      // For other roles, only export their own data
+      const user = await usersCollection.findOne({ userPhone });
+      users = user ? [user] : [];
+    } else {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
     
     // Convert users to CSV format
     let csvContent = 'Name,Phone Number,Email,Role,User Status,Created Date,Deleted Date,Re-enabled Date\n';

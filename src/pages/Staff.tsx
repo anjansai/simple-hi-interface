@@ -53,7 +53,8 @@ import {
   deleteUser,
   permanentlyDeleteUser,
   exportUsersToCSV,
-  reEnableUser
+  reEnableUser,
+  UserUpdateData
 } from '@/services/userService';
 import { Skeleton } from '@/components/ui/skeleton';
 import UserDetailView from '@/components/user/UserDetailView';
@@ -66,6 +67,7 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface UserData {
   _id: string;
@@ -99,6 +101,8 @@ const Staff = () => {
   const [statusTab, setStatusTab] = useState<string>('Active');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const { userData } = useAuth();
+  const isAdminOrManager = userData?.userRole === 'Admin' || userData?.userRole === 'Manager';
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -126,6 +130,11 @@ const Staff = () => {
     pageSize: 10,
     totalPages: 0
   };
+
+  // Filter users based on role for non-admin/manager users
+  const filteredUsers = isAdminOrManager 
+    ? users 
+    : users.filter(user => user.userPhone === userData?.userPhone);
 
   // Fetch user roles for filter
   const { data: roles = [], isLoading: rolesLoading } = useQuery({
@@ -158,6 +167,9 @@ const Staff = () => {
 
   const canEdit = settings?.userEdit ?? false;
   const canDelete = settings?.userDelete ?? false;
+  
+  // Only admin or manager can actually edit or delete regardless of settings
+  const canUserEditDelete = isAdminOrManager && (canEdit || canDelete);
 
   const handleCreateUser = () => {
     navigate('/staff/create-user');
@@ -237,10 +249,15 @@ const Staff = () => {
     if (!userToReEnable) return;
     
     try {
-      await reEnableUser(userToReEnable._id, {
-        ...values,
-        profileImage: userToReEnable.profileImage
-      });
+      // The values object has all required fields, preserving profileImage from the original user
+      const updateData: UserUpdateData = {
+        userName: values.userName,
+        userEmail: values.userEmail || '',
+        userRole: values.userRole,
+        profileImage: userToReEnable.profileImage || ''
+      };
+      
+      await reEnableUser(userToReEnable._id, updateData);
       
       refetchUsers();
       setUserToReEnable(null);
@@ -310,7 +327,9 @@ const Staff = () => {
           <h1 className="text-3xl font-bold tracking-tight">Staff Management</h1>
           <p className="text-muted-foreground">Manage your restaurant staff</p>
         </div>
-        <Button onClick={handleCreateUser}>Create User</Button>
+        {isAdminOrManager && (
+          <Button onClick={handleCreateUser}>Create User</Button>
+        )}
       </div>
 
       <Separator />
@@ -321,65 +340,73 @@ const Staff = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                User List
+                {isAdminOrManager ? 'User List' : 'My Profile'}
               </CardTitle>
-              <CardDescription>View and manage all users</CardDescription>
+              <CardDescription>
+                {isAdminOrManager ? 'View and manage all users' : 'View your user details'}
+              </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportCsv}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
+            {isAdminOrManager && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
 
         <CardContent className="px-0 pb-0 pt-4">
-          <div className="px-6 pb-4">
-            <Tabs value={statusTab} onValueChange={setStatusTab}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="Active">Active Users</TabsTrigger>
-                <TabsTrigger value="Deleted">Deleted Users</TabsTrigger>
-                <TabsTrigger value="Others">Other Status</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          {isAdminOrManager && (
+            <div className="px-6 pb-4">
+              <Tabs value={statusTab} onValueChange={setStatusTab}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="Active">Active Users</TabsTrigger>
+                  <TabsTrigger value="Deleted">Deleted Users</TabsTrigger>
+                  <TabsTrigger value="Others">Other Status</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
 
-          <div className="px-6 pb-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Filter by role:</span>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all-roles">All Roles</SelectItem>
-                  {validRoles.map((role: string) => (
-                    <SelectItem key={role} value={role}>{role}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {isAdminOrManager && (
+            <div className="px-6 pb-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Filter by role:</span>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All Roles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all-roles">All Roles</SelectItem>
+                    {validRoles.map((role: string) => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Page size:</span>
+                <Select value={pageSize.toString()} onValueChange={(val) => {
+                  setPageSize(Number(val));
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }}>
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="35">35</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Page size:</span>
-              <Select value={pageSize.toString()} onValueChange={(val) => {
-                setPageSize(Number(val));
-                setCurrentPage(1); // Reset to first page when changing page size
-              }}>
-                <SelectTrigger className="w-[80px]">
-                  <SelectValue placeholder="10" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="35">35</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          )}
 
           <Table>
             <TableHeader>
@@ -404,13 +431,13 @@ const Staff = () => {
                     <TableCell><Skeleton className="h-6 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <User className="h-12 w-12 text-muted-foreground opacity-50" />
                       <div className="text-muted-foreground">No users found</div>
-                      {statusTab === 'Active' && (
+                      {isAdminOrManager && statusTab === 'Active' && (
                         <Button onClick={handleCreateUser} variant="outline" size="sm">
                           Create User
                         </Button>
@@ -419,7 +446,7 @@ const Staff = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((user: UserData) => (
+                filteredUsers.map((user: UserData) => (
                   <TableRow key={user._id}>
                     <TableCell 
                       className="font-medium hover:text-primary cursor-pointer" 
@@ -451,7 +478,7 @@ const Staff = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {statusTab === 'Active' && canEdit && (
+                        {statusTab === 'Active' && canEdit && isAdminOrManager && (
                           <Button 
                             variant="ghost" 
                             size="icon"
@@ -460,30 +487,32 @@ const Staff = () => {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         )}
-                        {statusTab === 'Active' && canDelete && (
+                        {statusTab === 'Active' && canDelete && isAdminOrManager && (
                           <Button 
                             variant="ghost" 
                             size="icon"
                             onClick={() => handleDeleteRequest(user)}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
-                        {statusTab === 'Deleted' && (
+                        {statusTab === 'Deleted' && isAdminOrManager && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="icon"
                               onClick={() => handleReEnableRequest(user)}
+                              title="Re-enable User"
                             >
-                              <RotateCcw className="h-4 w-4 text-green-600" />
+                              <RotateCcw className="h-4 w-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon"
                               onClick={() => handlePermDeleteRequest(user)}
+                              title="Delete Permanently"
                             >
-                              <X className="h-4 w-4 text-red-600" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </>
                         )}
@@ -494,213 +523,188 @@ const Staff = () => {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-        
-        <CardFooter className="flex items-center justify-between p-6">
-          <div className="text-sm text-muted-foreground">
-            {pagination.total > 0 ? (
-              <>Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} users</>
-            ) : (
-              <>No users found</>
-            )}
-          </div>
           
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={goToPreviousPage}
-              disabled={currentPage <= 1 || users.length === 0}
-            >
-              Previous
-            </Button>
-            <span className="text-sm">
-              Page {pagination.total > 0 ? pagination.page : 0} of {pagination.totalPages || 1}
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={goToNextPage}
-              disabled={currentPage >= pagination.totalPages || users.length === 0}
-            >
-              Next
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
-
-      {/* User Detail Dialog */}
-      <Dialog open={isDetailViewOpen} onOpenChange={setIsDetailViewOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-            <DialogDescription>
-              Detailed information about this user
-            </DialogDescription>
-          </DialogHeader>
-          {selectedUser && (
-            <UserDetailView 
-              user={selectedUser} 
-              onEdit={() => {
-                setIsDetailViewOpen(false);
-                handleEditUser(selectedUser);
-              }}
-              onDelete={() => {
-                setIsDetailViewOpen(false);
-                handleDeleteRequest(selectedUser);
-              }}
-              canEdit={canEdit && selectedUser.userStatus === 'Active'}
-              canDelete={canDelete && selectedUser.userStatus === 'Active'}
-            />
+          {isAdminOrManager && filteredUsers.length > 0 && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-center space-x-2 py-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={goToPreviousPage}
+                disabled={currentPage <= 1}
+              >
+                Previous
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {pagination.totalPages}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={goToNextPage}
+                disabled={currentPage >= pagination.totalPages}
+              >
+                Next
+              </Button>
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
+        </CardContent>
+      </Card>
+      
+      {/* Regular Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete User
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This action will deactivate the user account. The user will no longer be able to log in.
+              Are you sure you want to delete this user? They will be marked as inactive and removed from the active users list.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete}>Delete</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Re-enable User Dialog */}
       <Dialog open={isReEnableDialogOpen} onOpenChange={setIsReEnableDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Re-enable User</DialogTitle>
+            <DialogTitle>Re-enable Deleted User</DialogTitle>
             <DialogDescription>
-              Update information and re-enable this user account.
+              Update user information and re-enable their account.
             </DialogDescription>
           </DialogHeader>
-          
+
           {userToReEnable && (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleReEnableSubmit)} className="space-y-4">
-                <div className="flex flex-col items-center mb-4">
-                  <Avatar className="w-20 h-20 mb-4">
-                    {userToReEnable.profileImage ? (
-                      <AvatarImage src={userToReEnable.profileImage} />
-                    ) : (
-                      <AvatarFallback>
-                        {userToReEnable.userName.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  
-                  <div className="text-sm text-muted-foreground">
-                    Phone: {userToReEnable.userPhone}
+            <div className="py-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleReEnableSubmit)} className="space-y-4">
+                  <div className="flex flex-col items-center mb-4">
+                    <Avatar className="w-16 h-16 mb-2">
+                      {userToReEnable.profileImage ? (
+                        <AvatarImage src={userToReEnable.profileImage} />
+                      ) : (
+                        <AvatarFallback>
+                          {userToReEnable.userName?.substring(0, 2).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <h3 className="font-medium text-center">{userToReEnable.userName}</h3>
+                    <p className="text-sm text-muted-foreground">{userToReEnable.userPhone}</p>
                   </div>
-                </div>
-                
-                <FormField
-                  control={form.control}
-                  name="userName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="userEmail"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email (Optional)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="email" 
-                          placeholder="Enter email address" 
-                          {...field} 
-                          value={field.value || ''} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="userRole"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                        value={field.value}
-                      >
+                  
+                  <FormField
+                    control={form.control}
+                    name="userName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
+                          <Input {...field} />
                         </FormControl>
-                        <SelectContent>
-                          {validRoles.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {role}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => {
-                      setUserToReEnable(null);
-                      setIsReEnableDialogOpen(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">Re-enable User</Button>
-                </DialogFooter>
-              </form>
-            </Form>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="userEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="userRole"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {validRoles.map((role: string) => (
+                              <SelectItem key={role} value={role}>{role}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Deleted Date</Label>
+                    <p className="text-sm font-medium">
+                      {userToReEnable.deletedDate 
+                        ? new Date(userToReEnable.deletedDate).toLocaleDateString() 
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  
+                  <DialogFooter className="pt-4">
+                    <Button variant="outline" onClick={() => setIsReEnableDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      Re-enable User
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Permanent Delete Confirmation Dialog */}
+      {/* Permanent Delete Dialog */}
       <AlertDialog open={isPermDeleteDialogOpen} onOpenChange={setIsPermDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Permanently Delete User</AlertDialogTitle>
+            <AlertDialogTitle>
+              Permanently Delete User
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              <div className="text-destructive font-bold mb-2">⚠️ This action cannot be undone! ⚠️</div>
-              <p>You are about to permanently delete this user from the system. All data associated with this user will be completely removed.</p>
-              <p className="mt-2">Are you absolutely sure you want to proceed with permanent deletion?</p>
+              <strong className="text-destructive">WARNING: This action cannot be undone.</strong> This user's data will be permanently deleted from the system.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToPermDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmPermanentDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, Permanently Delete
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPermanentDelete} className="bg-destructive text-destructive-foreground">
+              Permanently Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* User Detail View */}
+      <UserDetailView 
+        user={selectedUser} 
+        isOpen={isDetailViewOpen} 
+        onClose={() => setIsDetailViewOpen(false)} 
+        onEdit={isAdminOrManager && canEdit ? handleEditUser : undefined}
+        onDelete={isAdminOrManager && canDelete ? handleDeleteRequest : undefined}
+      />
     </div>
   );
 };

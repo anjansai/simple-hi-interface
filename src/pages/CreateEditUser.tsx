@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -55,12 +56,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 
+// Update schema to make fields required
 const userFormSchema = z.object({
   userName: z.string().min(1, "Name is required"),
   userPhone: z.string().min(1, "Phone number is required"),
   userEmail: z.string().email("Invalid email").optional().or(z.literal('')),
   userRole: z.string().min(1, "Role is required"),
-  password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
+  password: z.string().min(6, "Password must be at least 6 characters")
+    .or(z.literal('')) // Allow empty string for edit mode
+    .refine((val) => val !== '', {
+      message: "Password is required for new users",
+      path: ["password"],
+    }),
   profileImage: z.any().optional(),
 });
 
@@ -88,8 +95,13 @@ const CreateEditUser: React.FC = () => {
     enabled: isEditMode,
   });
 
+  // Use different schema based on edit mode
+  const schema = isEditMode 
+    ? userFormSchema.omit({ password: true }) 
+    : userFormSchema;
+
   const form = useForm<UserFormData>({
-    resolver: zodResolver(userFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       userName: '',
       userPhone: '',
@@ -145,31 +157,8 @@ const CreateEditUser: React.FC = () => {
     
     setFormValues(submissionValues);
     
-    // If this is a new user, check if it was previously deleted
-    if (!isEditMode) {
-      try {
-        const result = await createUser(submissionValues);
-        
-        // If the user was previously deleted, show re-enable dialog
-        if (result.isDeleted && result.deletedUser) {
-          setDeletedUser(result.deletedUser);
-          setIsReEnableDialogOpen(true);
-          return;
-        }
-        
-        // Otherwise, show the normal confirmation dialog
-        setIsConfirmDialogOpen(true);
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to check user status",
-          variant: "destructive",
-        });
-      }
-    } else {
-      // For edit mode, just show the confirmation dialog
-      setIsConfirmDialogOpen(true);
-    }
+    // Always show confirmation dialog
+    setIsConfirmDialogOpen(true);
   };
 
   const handleConfirm = async () => {
@@ -180,9 +169,9 @@ const CreateEditUser: React.FC = () => {
       if (isEditMode && id) {
         const updateData: UserUpdateData = {
           userName: formValues.userName,
-          userEmail: formValues.userEmail,
+          userEmail: formValues.userEmail || '',
           userRole: formValues.userRole,
-          profileImage: formValues.profileImage,
+          profileImage: formValues.profileImage || '',
         };
         
         await updateUser(id, updateData);
@@ -191,11 +180,33 @@ const CreateEditUser: React.FC = () => {
           description: "User updated successfully",
         });
       } else {
-        await createUser(formValues as UserFormData);
-        toast({
-          title: "Success",
-          description: "User created successfully",
-        });
+        // If this is a new user, check if it was previously deleted
+        try {
+          const result = await createUser(formValues as UserFormData);
+          
+          // If the user was previously deleted, show re-enable dialog
+          if (result.isDeleted && result.deletedUser) {
+            setDeletedUser(result.deletedUser);
+            setIsConfirmDialogOpen(false);
+            setIsReEnableDialogOpen(true);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          toast({
+            title: "Success",
+            description: "User created successfully",
+          });
+        } catch (error: any) {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to create user",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          setIsConfirmDialogOpen(false);
+          return;
+        }
       }
       
       navigate('/staff');
@@ -218,9 +229,9 @@ const CreateEditUser: React.FC = () => {
     try {
       const updateData: UserUpdateData = {
         userName: formValues.userName,
-        userEmail: formValues.userEmail,
+        userEmail: formValues.userEmail || '',
         userRole: formValues.userRole,
-        profileImage: formValues.profileImage,
+        profileImage: formValues.profileImage || '',
       };
       
       await reEnableUser(deletedUser._id, updateData);
@@ -321,7 +332,7 @@ const CreateEditUser: React.FC = () => {
                   name="userName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Name*</FormLabel>
                       <FormControl>
                         <Input placeholder="Enter name" {...field} />
                       </FormControl>
@@ -335,7 +346,7 @@ const CreateEditUser: React.FC = () => {
                   name="userPhone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
+                      <FormLabel>Phone Number*</FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="Enter phone number" 
@@ -375,7 +386,7 @@ const CreateEditUser: React.FC = () => {
                   name="userRole"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role</FormLabel>
+                      <FormLabel>Role*</FormLabel>
                       <Select 
                         onValueChange={field.onChange} 
                         defaultValue={field.value}
@@ -405,7 +416,7 @@ const CreateEditUser: React.FC = () => {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel>Password*</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 

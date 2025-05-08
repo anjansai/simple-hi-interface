@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   CreditCard,
@@ -18,20 +18,28 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from './UserAvatar';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
-  showSettings?: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children, showSettings = true }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const { userData, refreshUserData } = useAuth();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Navigation items with paths
-  const menuItems = [
+  // Refresh user data when the component mounts to ensure role is up to date
+  useEffect(() => {
+    refreshUserData();
+  }, []);
+
+  const isAdminOrManager = userData?.userRole === 'Admin' || userData?.userRole === 'Manager';
+
+  // Navigation items with paths - filter based on role
+  let menuItems = [
     {
       name: "Dashboard",
       path: "/dashboard",
@@ -64,8 +72,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, showSettings = true }
     },
   ];
 
-  // Add settings if the user has permission
-  if (showSettings) {
+  // Add settings if the user has Admin or Manager role
+  if (isAdminOrManager) {
     menuItems.push({
       name: "Settings",
       path: "/settings",
@@ -180,8 +188,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, showSettings = true }
             </header>
           )}
           <div className="container p-6 max-w-7xl">
-            {/* Remove duplicated content - Only render what's needed */}
-            {/* If Outlet is not available, use children, but not both */}
             {children ? children : <Outlet />}
           </div>
         </main>
