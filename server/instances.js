@@ -1,4 +1,3 @@
-
 const { collections, connectToDatabase } = require('./mongodb');
 
 // Create a new instance

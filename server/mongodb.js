@@ -1,8 +1,7 @@
-
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // Connection URI (defaulting to localhost if no env variable is set)
-const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/restaurantDB";
+const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/restaurantDB";
 
 // Create a MongoClient with connection options
 const client = new MongoClient(uri, {

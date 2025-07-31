@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/contexts/AuthContext";
 
 // Base URL for the API

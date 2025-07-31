@@ -1,4 +1,3 @@
-
 const { collections, connectToDatabase, toObjectId } = require('./mongodb');
 
 // Get all menu items
