@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
+  showSettings?: boolean;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
