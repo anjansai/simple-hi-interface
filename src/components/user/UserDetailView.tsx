@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pencil, Trash2 } from 'lucide-react';
-import { UserData } from '@/pages/Staff';
+import { UserData } from '@/services/userService';
 
 interface UserDetailViewProps {
   user: UserData | null;

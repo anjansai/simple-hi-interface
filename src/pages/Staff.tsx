@@ -54,7 +54,8 @@ import {
   permanentlyDeleteUser,
   exportUsersToCSV,
   reEnableUser,
-  UserUpdateData
+  UserUpdateData,
+  UserData
 } from '@/services/userService';
 import { Skeleton } from '@/components/ui/skeleton';
 import UserDetailView from '@/components/user/UserDetailView';
@@ -68,18 +69,6 @@ import { useForm } from "react-hook-form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-
-export interface UserData {
-  _id: string;
-  userName: string;
-  userEmail: string;
-  userPhone: string;
-  userRole: string;
-  userCreatedDate: string;
-  userStatus: string;
-  deletedDate?: string;
-  profileImage?: string;
-}
 
 const formSchema = z.object({
   userName: z.string().min(1, "Name is required"),

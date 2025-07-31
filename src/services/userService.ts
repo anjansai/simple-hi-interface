@@ -36,14 +36,36 @@ export interface User {
   profileImage?: string;
   isDeleted?: boolean;
   deletedUser?: any;
+  userCreatedDate?: string;
+  userStatus?: string;
+}
+
+export interface UserData {
+  _id: string;
+  name: string;
+  userName?: string;
+  userPhone: string;
+  userEmail?: string;
+  userRole: string;
+  status: string;
+  createdDate?: string;
+  deletedDate?: string;
+  reEnabledDate?: string;
+  profileImage?: string;
+  isDeleted?: boolean;
+  deletedUser?: any;
+  userCreatedDate?: string;
+  userStatus?: string;
 }
 
 export interface FetchUsersResponse {
-  users: User[];
+  users: UserData[];
   pagination?: {
     total: number;
     page: number;
     limit: number;
+    pageSize: number;
+    totalPages: number;
   };
 }
 
@@ -157,16 +179,25 @@ export async function updateStaffSettings(settings: { userEdit: boolean; userDel
 }
 
 // Fetch users
-export async function fetchUsers(status?: string, userPhone?: string): Promise<FetchUsersResponse> {
+export async function fetchUsers(
+  role?: string, 
+  options?: { 
+    page: number; 
+    pageSize: number; 
+    status: 'Active' | 'Deleted' | 'Others' 
+  }
+): Promise<FetchUsersResponse> {
   try {
     let url = `${API_BASE}/users`;
     const params = new URLSearchParams();
     
-    if (status) {
-      params.append('status', status);
+    if (role) {
+      params.append('role', role);
     }
-    if (userPhone) {
-      params.append('userPhone', userPhone);
+    if (options) {
+      params.append('page', options.page.toString());
+      params.append('pageSize', options.pageSize.toString());
+      params.append('status', options.status);
     }
     
     if (params.toString()) {
@@ -290,9 +321,9 @@ export async function permanentlyDeleteUser(userId: string): Promise<void> {
 }
 
 // Re-enable deleted user
-export async function reEnableUser(userData: UserFormData): Promise<User> {
+export async function reEnableUser(userId: string, userData: UserUpdateData): Promise<User> {
   try {
-    const response = await fetchWithApiKey(`${API_BASE}/users/re-enable`, {
+    const response = await fetchWithApiKey(`${API_BASE}/users/${userId}/re-enable`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
