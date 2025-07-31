@@ -407,6 +407,50 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// Refresh user data endpoint
+app.post('/api/users/refresh-data', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    const { userPhone } = req.body;
+    
+    if (!apiKey || !userPhone) {
+      return res.status(400).json({ error: 'API key and userPhone are required' });
+    }
+    
+    // Get updated user data from instance collection
+    const usersCollection = await userRoutes.getUserCollection(apiKey);
+    const user = await usersCollection.findOne({ 
+      userPhone: userPhone,
+      isDeleted: { $ne: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Also get data from master users to ensure API key is included
+    const masterUser = await collections.masterUsers.findOne({ 
+      userPhone: userPhone, 
+      apiKey: apiKey 
+    });
+    
+    const userData = {
+      userName: user.userName,
+      userEmail: user.userEmail,
+      userPhone: user.userPhone,
+      userRole: user.userRole,
+      profileImage: user.profileImage,
+      apiKey: masterUser ? masterUser.apiKey : apiKey,
+      companyId: masterUser ? masterUser.companyId : apiKey
+    };
+    
+    res.json(userData);
+  } catch (error) {
+    console.error('Refresh user data error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.put('/api/users/:id', async (req, res) => {
   try {
     const apiKey = req.headers['x-api-key'];

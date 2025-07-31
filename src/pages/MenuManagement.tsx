@@ -71,6 +71,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from '@/contexts/AuthContext';
 
 const menuCategories = [
   'All Items',
@@ -85,6 +86,12 @@ const menuCategories = [
 const MenuManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { userData: currentUser } = useAuth();
+  
+  // Check if current user can edit/delete items
+  const isAdminOrManager = currentUser?.userRole === 'Admin' || currentUser?.userRole === 'Manager';
+  const canEditItems = isAdminOrManager;
+  const canDeleteItems = isAdminOrManager;
   const [activeCategory, setActiveCategory] = useState('All Items');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -109,6 +116,8 @@ const MenuManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['menuItems'],
     queryFn: getAllMenuItems,
+    retry: 3,
+    retryDelay: 1000,
   });
 
   const { data: catalogSettings } = useQuery({
@@ -366,9 +375,11 @@ const MenuManagement: React.FC = () => {
           >
             <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
-          <Button className="w-full sm:w-auto" onClick={() => setIsAddModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add New Item
-          </Button>
+          {isAdminOrManager && (
+            <Button className="w-full sm:w-auto" onClick={() => setIsAddModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Add New Item
+            </Button>
+          )}
         </div>
       </div>
       
@@ -539,9 +550,9 @@ const MenuManagement: React.FC = () => {
                                 ₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}
                               </div>
                             </div>
-                            {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                            {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && isAdminOrManager && (
                               <div className="mt-4 flex gap-2">
-                                {catalogSettings?.itemEdit && (
+                                {catalogSettings?.itemEdit && canEditItems && (
                                   <Button 
                                     size="sm" 
                                     variant="outline" 
@@ -554,7 +565,7 @@ const MenuManagement: React.FC = () => {
                                     <Edit className="h-3.5 w-3.5 mr-1" /> Edit
                                   </Button>
                                 )}
-                                {catalogSettings?.itemDelete && (
+                                {catalogSettings?.itemDelete && canDeleteItems && (
                                   <Button 
                                     size="sm" 
                                     variant="destructive" 
@@ -587,7 +598,7 @@ const MenuManagement: React.FC = () => {
                           <TableHead>Code</TableHead>
                           <TableHead>Category</TableHead>
                           <TableHead>Price</TableHead>
-                          {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                          {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && isAdminOrManager && (
                             <TableHead className="text-right">Actions</TableHead>
                           )}
                         </TableRow>
@@ -604,10 +615,10 @@ const MenuManagement: React.FC = () => {
                               <TableCell>{item.itemCode}</TableCell>
                               <TableCell>{item.Category}</TableCell>
                               <TableCell>₹{typeof item.MRP === 'number' ? item.MRP.toFixed(2) : '0.00'}</TableCell>
-                              {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && (
+                              {(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && isAdminOrManager && (
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
-                                    {catalogSettings?.itemEdit && (
+                                    {catalogSettings?.itemEdit && canEditItems && (
                                       <Button 
                                         size="sm" 
                                         variant="outline"
@@ -619,7 +630,7 @@ const MenuManagement: React.FC = () => {
                                         <Edit className="h-3.5 w-3.5 mr-1" /> Edit
                                       </Button>
                                     )}
-                                    {catalogSettings?.itemDelete && (
+                                    {catalogSettings?.itemDelete && canDeleteItems && (
                                       <Button 
                                         size="sm" 
                                         variant="destructive"
@@ -639,7 +650,7 @@ const MenuManagement: React.FC = () => {
                         ) : (
                           <TableRow>
                             <TableCell 
-                              colSpan={(catalogSettings?.itemEdit || catalogSettings?.itemDelete) ? 5 : 4}
+                              colSpan={(catalogSettings?.itemEdit || catalogSettings?.itemDelete) && isAdminOrManager ? 5 : 4}
                               className="h-24 text-center"
                             >
                               No items found in this category. Try adjusting your search or filter.

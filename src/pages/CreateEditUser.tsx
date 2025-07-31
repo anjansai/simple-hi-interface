@@ -62,12 +62,15 @@ const userFormSchema = z.object({
   userPhone: z.string().min(1, "Phone number is required"),
   userEmail: z.string().email("Invalid email").optional().or(z.literal('')),
   userRole: z.string().min(1, "Role is required"),
-  password: z.string().min(6, "Password must be at least 6 characters")
-    .or(z.literal('')) // Allow empty string for edit mode
-    .refine((val) => val !== '', {
-      message: "Password is required for new users",
-      path: ["password"],
-    }),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  profileImage: z.any().optional(),
+});
+
+const editUserFormSchema = z.object({
+  userName: z.string().min(1, "Name is required"),
+  userPhone: z.string().min(1, "Phone number is required"),
+  userEmail: z.string().email("Invalid email").optional().or(z.literal('')),
+  userRole: z.string().min(1, "Role is required"),
   profileImage: z.any().optional(),
 });
 
@@ -96,9 +99,7 @@ const CreateEditUser: React.FC = () => {
   });
 
   // Use different schema based on edit mode
-  const schema = isEditMode 
-    ? userFormSchema.omit({ password: true }) 
-    : userFormSchema;
+  const schema = isEditMode ? editUserFormSchema : userFormSchema;
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(schema),
@@ -149,6 +150,43 @@ const CreateEditUser: React.FC = () => {
   };
 
   const onSubmit = async (values: UserFormData) => {
+    // Validate mandatory fields
+    if (!values.userName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!values.userPhone.trim()) {
+      toast({
+        title: "Validation Error", 
+        description: "Phone number is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!values.userRole) {
+      toast({
+        title: "Validation Error",
+        description: "Role selection is required", 
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!isEditMode && (!values.password || !values.password.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Password is required for new users",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Add the profile image to form values
     const submissionValues = {
       ...values,
